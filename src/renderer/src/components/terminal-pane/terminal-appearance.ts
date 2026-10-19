@@ -181,9 +181,6 @@ export function applyTerminalAppearance(
     const paneTheme = backgroundOverride
       ? composeActiveTerminalTheme(baseTheme, settings, backgroundOverride)
       : theme
-    if (colorContext && pane.container.style) {
-      pane.container.style.backgroundColor = paneTheme?.background ?? ''
-    }
     // Why value-gated: writing options.theme rebuilds the palette, discarding TUI OSC 4/10/11/12 mutations; skip on no-op change.
     if (paneTheme && !composedTerminalThemesEqual(pane.terminal.options.theme, paneTheme)) {
       pane.terminal.options.theme = paneTheme

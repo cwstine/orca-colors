@@ -141,6 +141,7 @@ describe('applyTerminalAppearance theme assignment', () => {
       terminal: { options: {}, cols: 80, rows: 24 },
       container: {
         dataset: {},
+        style: { backgroundColor: '' },
         getBoundingClientRect: () => ({ width: measurable ? 800 : 0, height: measurable ? 600 : 0 })
       },
       fitAddon: {
@@ -201,6 +202,7 @@ describe('applyTerminalAppearance theme assignment', () => {
         projects: { 'colors-repo': '#abcdef' }
       })
       update('#000000')
+      expect(first.container.style.backgroundColor).toBe('')
       expect(first.terminal.options.theme?.background).toBe('#123456')
       expect(second.terminal.options.theme?.background).toBe('#abcdef')
       update('#ffffff')
