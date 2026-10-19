@@ -1,5 +1,5 @@
 import {
-  NATIVE_CHAT_TRANSCRIPT_OUTER_CLASS,
+  nativeChatTranscriptOuterClass,
   NATIVE_CHAT_TRANSCRIPT_COLUMN_CLASS
 } from './native-chat-appearance-style'
 import { NativeChatJumpToLatest } from './NativeChatJumpToLatest'
@@ -374,7 +374,7 @@ export function NativeChatMessageList({
                 loadingEarlier={loadingEarlier}
               />
             ) : null}
-            <div className={NATIVE_CHAT_TRANSCRIPT_OUTER_CLASS}>
+            <div className={nativeChatTranscriptOuterClass(rail.visible)}>
               <div
                 ref={measureContent}
                 data-native-chat-transcript-column
