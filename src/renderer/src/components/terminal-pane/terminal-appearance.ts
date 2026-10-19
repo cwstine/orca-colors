@@ -1,4 +1,9 @@
 import type { ITheme } from '@xterm/xterm'
+import {
+  terminalBackgroundColors,
+  resolveTerminalBackgroundColor,
+  type TerminalColorTarget
+} from '@/lib/terminal-background-colors'
 import type { PaneManager } from '@/lib/pane-manager/pane-manager'
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
 import { resolveTerminalFontWeights } from '../../../../shared/terminal-fonts'
@@ -56,7 +61,8 @@ export function composeActiveTerminalTheme(
   settings: Pick<
     GlobalSettings,
     'terminalColorOverrides' | 'terminalBackgroundOpacity' | 'terminalCursorOpacity'
-  >
+  >,
+  backgroundOverride?: string
 ): ITheme | null {
   if (!baseTheme) {
     return null
@@ -73,6 +79,9 @@ export function composeActiveTerminalTheme(
   // Why: merge Ghostty color overrides atop the base theme so individual colors can be tweaked without losing the rest.
   if (settings.terminalColorOverrides) {
     theme = { ...theme, ...settings.terminalColorOverrides }
+  }
+  if (backgroundOverride && isHexColor(backgroundOverride)) {
+    theme = { ...theme, background: backgroundOverride }
   }
   // Why: convert the hex background to rgba so xterm honors the opacity when allowTransparency is set.
   if (settings.terminalBackgroundOpacity !== undefined && theme.background) {
@@ -142,7 +151,8 @@ export function applyTerminalAppearance(
   paneTransports: Map<number, PtyTransport>,
   effectiveMacOptionAsAlt: EffectiveMacOptionAsAlt,
   paneMode2031: Map<number, boolean>,
-  paneLastThemeMode: Map<number, 'dark' | 'light'>
+  paneLastThemeMode: Map<number, 'dark' | 'light'>,
+  colorContext?: Omit<TerminalColorTarget, 'leafId'>
 ): void {
   const appearance = resolveEffectiveTerminalAppearance(settings, systemPrefersDark)
   const paneStyles = resolvePaneStyleOptions(settings)
@@ -162,15 +172,27 @@ export function applyTerminalAppearance(
   )
 
   for (const pane of manager.getPanes()) {
+    const backgroundOverride = colorContext
+      ? resolveTerminalBackgroundColor(terminalBackgroundColors.getState(), {
+          ...colorContext,
+          leafId: pane.leafId
+        })
+      : undefined
+    const paneTheme = backgroundOverride
+      ? composeActiveTerminalTheme(baseTheme, settings, backgroundOverride)
+      : theme
+    if (colorContext && pane.container.style) {
+      pane.container.style.backgroundColor = paneTheme?.background ?? ''
+    }
     // Why value-gated: writing options.theme rebuilds the palette, discarding TUI OSC 4/10/11/12 mutations; skip on no-op change.
-    if (theme && !composedTerminalThemesEqual(pane.terminal.options.theme, theme)) {
-      pane.terminal.options.theme = theme
+    if (paneTheme && !composedTerminalThemesEqual(pane.terminal.options.theme, paneTheme)) {
+      pane.terminal.options.theme = paneTheme
     }
     // Gate off the configured theme background; the live OSC-11 background is deliberately preserved by the
     // theme write above, so a TUI that repaints its background at runtime won't re-gate (known limitation).
     // Why value-gated: writing minimumContrastRatio clears xterm's contrast cache, so skip on no-op re-applies.
     const minimumContrastRatio = resolveTerminalMinimumContrastRatio(
-      theme?.background,
+      paneTheme?.background,
       appearance.mode,
       settings.terminalMinimumContrastRatio
     )

@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useTerminalBackgroundColors } from '@/lib/terminal-background-colors'
 import type { IDisposable } from '@xterm/xterm'
 import { normalizeDesktopTerminalScrollbackRows } from '../../../../shared/terminal-scrollback-policy'
 import { applyTerminalAppearance } from './terminal-appearance'
@@ -19,6 +20,7 @@ import { listenForHibernatedAgentWake } from './hibernated-agent-wake-listener'
 
 /** Coordinates mount, visibility, and live appearance effects for terminal panes. */
 export function useTerminalPaneLifecycle(deps: UseTerminalPaneLifecycleDeps): void {
+  const colors = useTerminalBackgroundColors()
   const refs = useTerminalPaneLifecycleRefs()
   useTerminalPaneMountLifecycle(deps, refs)
 
@@ -104,9 +106,13 @@ export function useTerminalPaneLifecycle(deps: UseTerminalPaneLifecycleDeps): vo
       deps.paneTransportsRef.current,
       deps.effectiveMacOptionAsAltRef.current,
       deps.paneMode2031Ref.current,
-      deps.paneLastThemeModeRef.current
+      deps.paneLastThemeModeRef.current,
+      { tabId: deps.tabId, worktreeId: deps.worktreeId }
     )
   }, [
+    colors,
+    deps.tabId,
+    deps.worktreeId,
     deps.settings,
     deps.systemPrefersDark,
     deps.effectiveMacOptionAsAlt,

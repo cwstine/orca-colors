@@ -82,3 +82,28 @@ describe('composeActiveTerminalTheme', () => {
     expect(composeActiveTerminalTheme(null, settingsWith({}))).toBeNull()
   })
 })
+
+describe('pane background overrides', () => {
+  it('wins over global overrides before opacity and preserves the base theme', () => {
+    const base = { background: '#000000', foreground: '#eeeeee' }
+    const result = composeActiveTerminalTheme(
+      base,
+      {
+        terminalColorOverrides: { background: '#111111' },
+        terminalBackgroundOpacity: 0.5
+      },
+      '#123456'
+    )
+    expect(result?.background).toBe('rgba(18, 52, 86, 0.5)')
+    expect(result?.foreground).toBe('#eeeeee')
+    expect(base.background).toBe('#000000')
+  })
+  it('ignores invalid overrides and returns to theme on reset', () => {
+    expect(composeActiveTerminalTheme({ background: '#123456' }, {}, 'red')?.background).toBe(
+      '#123456'
+    )
+    expect(composeActiveTerminalTheme({ background: '#123456' }, {}, undefined)?.background).toBe(
+      '#123456'
+    )
+  })
+})

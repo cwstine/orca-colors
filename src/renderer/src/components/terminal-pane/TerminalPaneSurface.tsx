@@ -260,6 +260,15 @@ export function TerminalPaneSurface({
       />
       <TerminalPaneNativeChatPortal controller={controller} />
       <TerminalContextMenu
+        colorTarget={
+          controller.contextMenuLeafId
+            ? {
+                tabId,
+                worktreeId,
+                leafId: controller.contextMenuLeafId
+              }
+            : undefined
+        }
         open={contextMenu.open}
         onOpenChange={contextMenu.setOpen}
         menuPoint={contextMenu.point}

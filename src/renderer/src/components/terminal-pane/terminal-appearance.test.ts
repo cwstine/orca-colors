@@ -1,3 +1,4 @@
+import { terminalBackgroundColors, getTerminalColorPaneKey } from '@/lib/terminal-background-colors'
 import { describe, expect, it, vi } from 'vitest'
 import type { ManagedPane, PaneManager } from '@/lib/pane-manager/pane-manager'
 import { getDefaultSettings } from '../../../../shared/constants'
@@ -172,6 +173,50 @@ describe('applyTerminalAppearance theme assignment', () => {
       new Map()
     )
   }
+
+  it('applies independent pane colors, project inheritance and resets across theme changes', () => {
+    const first = makePane(1)
+    const second = makePane(2)
+    first.leafId = '11111111-1111-4111-8111-111111111111'
+    second.leafId = '22222222-2222-4222-8222-222222222222'
+    const context = { tabId: 'colors-tab', worktreeId: 'colors-repo::/dir' }
+    const target = { ...context, leafId: first.leafId }
+    const manager = makeManager([first, second])
+    const settings = getDefaultSettings('/tmp')
+    const update = (background: string) =>
+      applyTerminalAppearance(
+        manager,
+        { ...settings, terminalColorOverrides: { background } },
+        true,
+        new Map(),
+        new Map(),
+        'false',
+        new Map(),
+        new Map(),
+        context
+      )
+    try {
+      terminalBackgroundColors.setState({
+        panes: { [getTerminalColorPaneKey(target)]: '#123456' },
+        projects: { 'colors-repo': '#abcdef' }
+      })
+      update('#000000')
+      expect(first.terminal.options.theme?.background).toBe('#123456')
+      expect(second.terminal.options.theme?.background).toBe('#abcdef')
+      update('#ffffff')
+      expect(first.terminal.options.theme?.background).toBe('#123456')
+      expect(second.terminal.options.theme?.background).toBe('#abcdef')
+      terminalBackgroundColors.setState({ panes: {} })
+      update('#ffffff')
+      expect(first.terminal.options.theme?.background).toBe('#abcdef')
+      terminalBackgroundColors.setState({ projects: {} })
+      update('#ffffff')
+      expect(first.terminal.options.theme?.background).toBe('#ffffff')
+      expect(second.terminal.options.theme?.background).toBe('#ffffff')
+    } finally {
+      terminalBackgroundColors.setState({ panes: {}, projects: {} })
+    }
+  })
 
   it('keeps options.theme identity across attribute-neutral applies (font size tweak)', () => {
     const pane = makePane(1)

@@ -1,4 +1,10 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
+import type { TerminalColorTarget } from '@/lib/terminal-background-colors'
+import {
+  TerminalBackgroundColorMenu,
+  type TerminalCustomColorTarget
+} from './TerminalBackgroundColorMenu'
+import { TerminalBackgroundColorDialog } from './TerminalBackgroundColorDialog'
 import {
   Clipboard,
   Copy,
@@ -38,6 +44,8 @@ import type { TerminalQuickCommandMenuHost } from '@/hooks/use-terminal-quick-co
 import { TerminalQuickCommandsSubmenu } from './TerminalQuickCommandsSubmenu'
 
 type TerminalContextMenuProps = {
+  colorTarget?: TerminalColorTarget
+  onCustomColor?: (target: TerminalCustomColorTarget) => void
   open: boolean
   onOpenChange: (open: boolean) => void
   menuPoint: { x: number; y: number }
@@ -83,56 +91,73 @@ type TerminalContextMenuProps = {
 
 export default function TerminalContextMenu(props: TerminalContextMenuProps): React.JSX.Element {
   const { open, onOpenChange, menuPoint, menuOpenedAtRef } = props
+  const [customColor, setCustomColor] = useState<TerminalCustomColorTarget | null>(null)
   return (
-    <DropdownMenu
-      open={open}
-      onOpenChange={(nextOpen) => {
-        if (!nextOpen && Date.now() - menuOpenedAtRef.current < 100) {
-          return
-        }
-        onOpenChange(nextOpen)
-      }}
-      modal={false}
-    >
-      <DropdownMenuTrigger asChild>
-        <button
-          aria-hidden
-          tabIndex={-1}
-          className="pointer-events-none absolute size-px opacity-0"
-          style={{ left: menuPoint.x, top: menuPoint.y }}
-        />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        className="w-60"
-        sideOffset={0}
-        align="start"
-        onCloseAutoFocus={(e) => {
-          // Keep xterm focused instead of Radix's hidden trigger.
-          e.preventDefault()
-        }}
-        onFocusOutside={(e) => {
-          // xterm reclaiming focus after contextmenu is not an outside dismissal.
-          e.preventDefault()
-        }}
-        onPointerDownOutside={(e) => {
-          if (
-            shouldIgnoreTerminalMenuPointerDownOutside({
-              openedAtMs: menuOpenedAtRef.current,
-              nowMs: Date.now()
-            })
-          ) {
-            e.preventDefault()
+    <>
+      <DropdownMenu
+        open={open}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen && Date.now() - menuOpenedAtRef.current < 100) {
+            return
           }
+          onOpenChange(nextOpen)
         }}
+        modal={false}
       >
-        <TerminalContextMenuItems {...props} />
-      </DropdownMenuContent>
-    </DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            aria-hidden
+            tabIndex={-1}
+            className="pointer-events-none absolute size-px opacity-0"
+            style={{ left: menuPoint.x, top: menuPoint.y }}
+          />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          className="w-60"
+          sideOffset={0}
+          align="start"
+          onCloseAutoFocus={(e) => {
+            // Keep xterm focused instead of Radix's hidden trigger.
+            e.preventDefault()
+          }}
+          onFocusOutside={(e) => {
+            // xterm reclaiming focus after contextmenu is not an outside dismissal.
+            e.preventDefault()
+          }}
+          onPointerDownOutside={(e) => {
+            if (
+              shouldIgnoreTerminalMenuPointerDownOutside({
+                openedAtMs: menuOpenedAtRef.current,
+                nowMs: Date.now()
+              })
+            ) {
+              e.preventDefault()
+            }
+          }}
+        >
+          <TerminalContextMenuItems
+            {...props}
+            onCustomColor={(target) => {
+              onOpenChange(false)
+              setCustomColor(target)
+            }}
+          />
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {customColor ? (
+        <TerminalBackgroundColorDialog
+          selection={customColor}
+          onClose={() => setCustomColor(null)}
+        />
+      ) : null}
+    </>
   )
 }
 
 // Build menu rows only when Radix mounts the open content, after terminal activation.
 function TerminalContextMenuItems({
+  colorTarget,
+  onCustomColor,
   onOpenChange,
   canClosePane,
   canExpandPane,
@@ -301,6 +326,9 @@ function TerminalContextMenuItems({
           <DropdownMenuShortcut>{shortcuts.setTitle}</DropdownMenuShortcut>
         ) : null}
       </DropdownMenuItem>
+      {colorTarget && onCustomColor ? (
+        <TerminalBackgroundColorMenu target={colorTarget} onCustomColor={onCustomColor} />
+      ) : null}
       {canClearPaneTitle ? (
         <ClearPaneTitleMenuItem
           onSelect={onClearPaneTitle}
