@@ -1,4 +1,5 @@
 import { app } from 'electron'
+import { isOrcaColorsBuild } from '../../shared/orca-colors-build'
 import { is } from '@electron-toolkit/utils'
 import { isMacInstallRequested } from '../updater-mac-install'
 import { withUpdaterSpan } from '../observability/instrumentation'
@@ -65,7 +66,7 @@ export abstract class UpdaterScheduling extends UpdaterCheckFailure {
     if (this.backgroundCheckLaunchPending || this.currentStatus.state === 'checking') {
       return false
     }
-    if (!app.isPackaged || is.dev) {
+    if (!app.isPackaged || is.dev || isOrcaColorsBuild(app.getVersion())) {
       this.sendStatus({ state: 'not-available' })
       return false
     }

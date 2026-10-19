@@ -1,3 +1,4 @@
+import { isOrcaColorsBuild, ORCA_COLORS_UPDATE_MESSAGE } from '../../shared/orca-colors-build'
 import { app } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import {
@@ -90,6 +91,10 @@ export abstract class UpdaterBuildSelection extends UpdaterMenuChecks {
 
   /** Pins the updater at one exact release tag and checks it, so a dev can move to any published build on any channel — including an older one. */
   protected async checkForPinnedBuild(channel: ReleaseChannel, tag: string): Promise<void> {
+    if (isOrcaColorsBuild(app.getVersion())) {
+      this.sendStatus({ state: 'error', message: ORCA_COLORS_UPDATE_MESSAGE, userInitiated: true })
+      return
+    }
     if (!app.isPackaged || is.dev) {
       this.sendStatus({ state: 'not-available', userInitiated: true })
       return

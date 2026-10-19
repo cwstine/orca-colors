@@ -1,4 +1,5 @@
 import { app } from 'electron'
+import { isOrcaColorsBuild, ORCA_COLORS_UPDATE_MESSAGE } from '../../shared/orca-colors-build'
 import { is } from '@electron-toolkit/utils'
 import { isMacInstallRequested } from '../updater-mac-install'
 import type { UpdateCheckOptions } from '../../shared/update-status-types'
@@ -17,6 +18,10 @@ export abstract class UpdaterMenuChecks extends UpdaterScheduling {
     }
     if (!app.isPackaged || is.dev) {
       this.sendStatus({ state: 'not-available', userInitiated: true })
+      return
+    }
+    if (isOrcaColorsBuild(app.getVersion()) && !options?.localBuild) {
+      this.sendStatus({ state: 'error', message: ORCA_COLORS_UPDATE_MESSAGE, userInitiated: true })
       return
     }
     if (options?.localBuild) {
