@@ -10,7 +10,15 @@ function fixture(ahead, existing = []) {
     context: { repo: { owner: 'cwstine', repo: 'orca-colors' } },
     core: { info() {} },
     github: {
+      graphql: async (query, args) => {
+        calls.push(['autoMerge', args])
+      },
       rest: {
+        actions: {
+          createWorkflowDispatch: async (args) => {
+            calls.push(['dispatch', args])
+          }
+        },
         repos: {
           compareCommitsWithBasehead: async (args) => {
             calls.push(['compare', args])
@@ -24,7 +32,13 @@ function fixture(ahead, existing = []) {
           },
           create: async (args) => {
             calls.push(['create', args])
-            return { data: { html_url: 'https://github.com/cwstine/orca-colors/pull/1' } }
+            return {
+              data: {
+                html_url: 'https://github.com/cwstine/orca-colors/pull/1',
+                number: 1,
+                node_id: 'PR_1'
+              }
+            }
           }
         }
       }
@@ -71,4 +85,36 @@ test('report-only mode never attempts to create or approve a PR', async () => {
   assert.equal(result.reportOnly, true)
   assert.ok(result.url.includes('/compare/staging...'))
   assert.ok(!f.calls.some(([name]) => name === 'create'))
+})
+
+for (const existing of [[], [{ html_url: 'existing', number: 2, node_id: 'PR_2' }]]) {
+  test(`enables gated auto-merge and dispatches checks for ${existing.length ? 'existing' : 'new'} PR`, async () => {
+    const f = fixture(2, existing)
+    f.autoMerge = true
+    await proposeUpstreamUpdate(f)
+    const dispatch = f.calls.find(([name]) => name === 'dispatch')[1]
+    assert.equal(dispatch.ref, 'staging')
+    assert.equal(dispatch.workflow_id, 'fork-checks.yml')
+    assert.equal(dispatch.inputs.pr_number, String(existing.length ? 2 : 1))
+    const merge = f.calls.find(([name]) => name === 'autoMerge')[1]
+    assert.equal(merge.id, existing.length ? 'PR_2' : 'PR_1')
+    assert.ok(
+      f.calls.findIndex(([name]) => name === 'dispatch') <
+        f.calls.findIndex(([name]) => name === 'autoMerge')
+    )
+  })
+}
+test('does not enable auto-merge unless explicitly configured', async () => {
+  const f = fixture(2)
+  await proposeUpstreamUpdate(f)
+  assert.ok(!f.calls.some(([name]) => name === 'autoMerge' || name === 'dispatch'))
+})
+test('does not enable auto-merge when dispatch fails', async () => {
+  const f = fixture(2)
+  f.autoMerge = true
+  f.github.rest.actions.createWorkflowDispatch = async () => {
+    throw new Error('dispatch failed')
+  }
+  await assert.rejects(proposeUpstreamUpdate(f), /dispatch failed/)
+  assert.ok(!f.calls.some(([name]) => name === 'autoMerge'))
 })

@@ -20,11 +20,11 @@ Preferences are saved in the local profile's renderer storage (`orca-colors.back
 
 **Fork upstream updates** runs daily at **11:23 UTC** and can also be run from the Actions page. It compares upstream `stablyai/orca:main` with this fork's `staging` branch and opens one update PR when there are new commits. Automatic PR creation is enabled through `ORCA_COLORS_CREATE_UPDATE_PRS=true` and the approved GitHub workflow permission. If that variable is disabled, the workflow falls back to reporting a comparison link. An existing open PR continues tracking upstream directly, so repeated runs do not create duplicates.
 
-Updates are **proposed automatically**, not automatically merged or installed. Review and merge the update PR into `staging`, resolve any conflicts while preserving the color changes, then rebuild. This keeps future upstream changes reviewable and prevents a conflict from discarding the custom feature. This tracks all changes on upstream main, including changes before an official release.
+Updates are **merged automatically after the required fork checks pass**, using `ORCA_COLORS_AUTO_MERGE=true` and GitHub auto-merge. Checks test a pinned merge of upstream and this fork, with a required `Orca Colors checks` status on the upstream commit. Conflicts and failed checks leave the PR open for attention. This tracks all changes on upstream main, including changes before an official release. Rebuild the app after source updates; this workflow does not install app updates.
 
 **Fork checks** tests the color feature, updater guard, automation and renderer types using standard GitHub runners. Upstream's inherited workflows use Stably infrastructure and are kept disabled in this fork; their YAML remains intact to reduce future merge conflicts. These focused checks do not replace upstream's full multi-platform test matrix.
 
-GitHub may require approval for checks triggered by a bot-created PR. Approve the pending run, or run **Fork checks** manually with `refs/pull/NUMBER/merge`. If conflicts prevent that merge ref from existing, resolve them first. GitHub may disable scheduled workflows after 60 days without repository activity; re-enable **Fork upstream updates** on the Actions page if that happens.
+The daily update workflow explicitly dispatches **Fork checks** from trusted `staging` with the upstream PR number, avoiding bot-created PR approval prompts. Candidate code runs in a separate job with read-only permissions and no secrets. A separate trusted job publishes the required status only if the tested head and base are still current. To retry, run **Fork upstream updates** manually. If conflicts prevent a merge candidate from existing, resolve them first. GitHub may disable scheduled workflows after 60 days without repository activity; re-enable **Fork upstream updates** on the Actions page if that happens.
 
 ## Develop and build on macOS
 
@@ -52,7 +52,7 @@ The app is produced under `dist/`. The build uses a `colors` version suffix, dis
 ## Verification
 
 ```sh
-node --test config/scripts/fork-upstream-proposal.test.cjs config/scripts/fork-mac-launcher.test.cjs
+node --test config/scripts/fork-upstream-proposal.test.cjs config/scripts/fork-mac-launcher.test.cjs config/scripts/fork-check-status.test.cjs
 pnpm exec vitest run --config config/vitest.config.ts \
   src/renderer/src/lib/terminal-background-colors.test.ts \
   src/renderer/src/components/terminal-pane/compose-active-terminal-theme.test.ts \

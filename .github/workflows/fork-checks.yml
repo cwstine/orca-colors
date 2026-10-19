@@ -6,18 +6,44 @@ on:
     branches: [staging]
   workflow_dispatch:
     inputs:
+      pr_number:
+        description: 'Upstream update PR to validate and report required status'
+        required: false
       ref:
         description: 'Revision to test (for example refs/pull/1/merge)'
         default: staging
-        required: true
+        required: false
 permissions:
   contents: read
 concurrency:
-  group: fork-checks-${{ github.event.pull_request.number || github.ref }}
+  group: fork-checks-${{ inputs.pr_number || github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 jobs:
+  prepare:
+    if: github.repository == 'cwstine/orca-colors' && inputs.pr_number != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      statuses: write
+    outputs:
+      merge: ${{ steps.candidate.outputs.merge }}
+      head: ${{ steps.candidate.outputs.head }}
+      base: ${{ steps.candidate.outputs.base }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/github-script@v7
+        id: candidate
+        env:
+          PR_NUMBER: ${{ inputs.pr_number }}
+        with:
+          script: |
+            const { prepare } = require('./config/scripts/fork-check-status.cjs')
+            await prepare({ github, context, core, number: Number(process.env.PR_NUMBER) })
   validate:
-    if: github.repository == 'cwstine/orca-colors'
+    needs: prepare
+    if: always() && (needs.prepare.result == 'success' || needs.prepare.result == 'skipped') && github.repository == 'cwstine/orca-colors'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -25,7 +51,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref || github.ref }}
+          ref: ${{ needs.prepare.outputs.merge || inputs.ref || github.ref }}
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
@@ -36,8 +62,32 @@ jobs:
       - run: pnpm run build:packages
       - name: Color and upstream automation tests
         run: |
-          node --test config/scripts/fork-upstream-proposal.test.cjs config/scripts/fork-mac-launcher.test.cjs
+          node --test config/scripts/fork-upstream-proposal.test.cjs config/scripts/fork-mac-launcher.test.cjs config/scripts/fork-check-status.test.cjs
           pnpm exec vitest run --config config/vitest.config.ts src/renderer/src/lib/terminal-background-colors.test.ts src/renderer/src/components/terminal-pane/compose-active-terminal-theme.test.ts src/renderer/src/components/terminal-pane/terminal-appearance.test.ts src/renderer/src/components/terminal-pane/TerminalBackgroundColorMenu.test.tsx src/shared/orca-colors-build.test.ts src/main/updater.orca-colors.test.ts
       - run: node config/scripts/run-typecheck-projects-in-parallel.mjs --compiler=native --project=config/tsconfig.tc.web.json
       - name: Lint color feature
         run: pnpm exec oxlint src/renderer/src/lib/terminal-background-colors.ts src/renderer/src/lib/terminal-background-colors.test.ts src/renderer/src/components/terminal-pane/TerminalBackgroundColorMenu.tsx src/renderer/src/components/terminal-pane/TerminalBackgroundColorDialog.tsx src/shared/orca-colors-build.ts
+
+  report:
+    needs: [prepare, validate]
+    if: always() && needs.prepare.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      # Load status reporting from the trusted workflow revision, never the candidate.
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ inputs.pr_number }}
+          TESTED_HEAD: ${{ needs.prepare.outputs.head }}
+          TESTED_BASE: ${{ needs.prepare.outputs.base }}
+          RESULT: ${{ needs.validate.result }}
+        with:
+          script: |
+            const { publish } = require('./config/scripts/fork-check-status.cjs')
+            await publish({ github, context, number: Number(process.env.PR_NUMBER),
+              head: process.env.TESTED_HEAD, base: process.env.TESTED_BASE, result: process.env.RESULT })

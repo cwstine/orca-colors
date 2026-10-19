@@ -2,6 +2,7 @@ import { terminalBackgroundColors, getTerminalColorPaneKey } from '@/lib/termina
 import { describe, expect, it, vi } from 'vitest'
 import type { ManagedPane, PaneManager } from '@/lib/pane-manager/pane-manager'
 import { getDefaultSettings } from '../../../../shared/constants'
+import { isTerminalLeafId } from '../../../../shared/stable-pane-id'
 import {
   applyTerminalAppearance,
   hexToRgba,
@@ -178,8 +179,13 @@ describe('applyTerminalAppearance theme assignment', () => {
   it('applies independent pane colors, project inheritance and resets across theme changes', () => {
     const first = makePane(1)
     const second = makePane(2)
-    first.leafId = '11111111-1111-4111-8111-111111111111'
-    second.leafId = '22222222-2222-4222-8222-222222222222'
+    const firstId = '11111111-1111-4111-8111-111111111111'
+    const secondId = '22222222-2222-4222-8222-222222222222'
+    if (!isTerminalLeafId(firstId) || !isTerminalLeafId(secondId)) {
+      throw new Error('Invalid test pane IDs')
+    }
+    first.leafId = firstId
+    second.leafId = secondId
     const context = { tabId: 'colors-tab', worktreeId: 'colors-repo::/dir' }
     const target = { ...context, leafId: first.leafId }
     const manager = makeManager([first, second])

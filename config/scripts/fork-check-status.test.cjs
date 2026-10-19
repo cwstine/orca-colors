@@ -1,0 +1,84 @@
+const { test } = require('node:test')
+const assert = require('node:assert/strict')
+const { prepare, publish } = require('./fork-check-status.cjs')
+
+function fixture() {
+  const statuses = []
+  const outputs = {}
+  const pull = {
+    state: 'open',
+    base: { ref: 'staging', sha: 'base', repo: { full_name: 'cwstine/orca-colors' } },
+    head: { ref: 'main', sha: 'head', repo: { full_name: 'stablyai/orca' } }
+  }
+  const merge = { sha: 'merge', parents: [{ sha: 'base' }, { sha: 'head' }] }
+  return {
+    statuses,
+    outputs,
+    pull,
+    merge,
+    context: { repo: { owner: 'cwstine', repo: 'orca-colors' }, runId: 42 },
+    core: {
+      setOutput(key, value) {
+        outputs[key] = value
+      }
+    },
+    number: 1,
+    head: 'head',
+    base: 'base',
+    result: 'success',
+    github: {
+      rest: {
+        pulls: { get: async () => ({ data: pull }) },
+        repos: {
+          getCommit: async () => ({ data: merge }),
+          createCommitStatus: async (args) => statuses.push(args)
+        },
+        git: { getRef: async () => ({ data: { object: { sha: pull.base.sha } } }) }
+      }
+    }
+  }
+}
+
+test('tests a pinned merge of exactly the current fork and upstream commits', async () => {
+  const f = fixture()
+  await prepare(f)
+  assert.deepEqual(f.outputs, { merge: 'merge', head: 'head', base: 'base' })
+  assert.equal(f.statuses[0].state, 'pending')
+})
+test('rejects other source repositories before publishing a status', async () => {
+  const f = fixture()
+  f.pull.head.repo.full_name = 'someone/orca'
+  await assert.rejects(prepare(f), /Only open upstream/)
+  assert.equal(f.statuses.length, 0)
+})
+test('rejects stale merge refs without releasing the gate', async () => {
+  const f = fixture()
+  f.merge.parents[0].sha = 'old-base'
+  await assert.rejects(prepare(f), /stale/)
+  assert.deepEqual(f.outputs, {})
+  assert.equal(f.statuses[0].state, 'pending')
+})
+test('reports success only for the tested head with the same current base', async () => {
+  const f = fixture()
+  await publish(f)
+  assert.equal(f.statuses[0].state, 'success')
+  assert.equal(f.statuses[0].sha, 'head')
+  assert.equal(f.statuses[0].context, 'Orca Colors checks')
+})
+for (const result of ['failure', 'cancelled', 'skipped']) {
+  test(`does not allow merging after ${result} validation`, async () => {
+    const f = fixture()
+    f.result = result
+    await publish(f)
+    assert.equal(f.statuses[0].state, 'failure')
+  })
+}
+for (const part of ['head', 'base']) {
+  test(`invalidates success if ${part} changes during testing`, async () => {
+    const f = fixture()
+    f.pull[part].sha = 'changed'
+    await publish(f)
+    assert.equal(f.statuses[0].state, 'failure')
+    assert.equal(f.statuses[0].sha, 'head')
+  })
+}

@@ -1,6 +1,12 @@
 const UPSTREAM = { owner: 'stablyai', repo: 'orca', branch: 'main' }
 
-async function proposeUpstreamUpdate({ github, context, core, createPullRequests = false }) {
+async function proposeUpstreamUpdate({
+  github,
+  context,
+  core,
+  createPullRequests = false,
+  autoMerge = false
+}) {
   const repo = context.repo
   if (repo.owner !== 'cwstine' || repo.repo !== 'orca-colors') {
     throw new Error('This automation is restricted to cwstine/orca-colors.')
@@ -17,6 +23,7 @@ async function proposeUpstreamUpdate({ github, context, core, createPullRequests
   const existing = await github.rest.pulls.list({ ...repo, state: 'open', base: 'staging', head })
   if (existing.data.length) {
     core.info(`Upstream updates are already tracked by ${existing.data[0].html_url}`)
+    await configureUpdate(existing.data[0])
     return { changed: true, url: existing.data[0].html_url }
   }
   if (!createPullRequests) {
@@ -35,15 +42,38 @@ async function proposeUpstreamUpdate({ github, context, core, createPullRequests
       'The source branch tracks upstream directly, so this proposal stays current without copying or force-pushing custom commits.',
       '',
       '## Review',
-      'Resolve any merge conflicts while preserving terminal colors and project defaults. Review the diff and run Fork checks before merging. This automation does not merge or install updates.',
+      'Passing updates merge automatically into staging. Merge conflicts or failed fork checks leave this PR open for review, preserving terminal colors and project defaults.',
       '',
       '## Testing',
-      'GitHub may require approval before running checks on an automation-created pull request. Approve the workflow run or dispatch Fork checks for the PR merge ref. Rebuild Orca Colors after merging.'
+      'The update job dispatches Fork checks for the combined upstream and customized code. GitHub requires the Orca Colors checks status before auto-merge. Rebuild Orca Colors after merging; this does not install app updates.'
     ].join('\n'),
     maintainer_can_modify: false
   })
+  await configureUpdate(result.data)
   core.info(`Created ${result.data.html_url}`)
   return { changed: true, url: result.data.html_url }
+
+  async function configureUpdate(pull) {
+    if (!autoMerge) {
+      return
+    }
+    await github.rest.actions.createWorkflowDispatch({
+      ...repo,
+      workflow_id: 'fork-checks.yml',
+      ref: 'staging',
+      inputs: { pr_number: String(pull.number) }
+    })
+    if (!pull.auto_merge) {
+      await github.graphql(
+        `mutation($id: ID!) {
+        enablePullRequestAutoMerge(input: {pullRequestId: $id, mergeMethod: MERGE}) {
+          pullRequest { number }
+        }
+      }`,
+        { id: pull.node_id }
+      )
+    }
+  }
 }
 
 module.exports = { proposeUpstreamUpdate }

@@ -4,7 +4,8 @@ on:
     - cron: '23 11 * * *'
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
+  actions: write
   pull-requests: write
 concurrency:
   group: fork-upstream-updates
@@ -21,11 +22,12 @@ jobs:
           persist-credentials: false
       - uses: actions/github-script@v7
         env:
+          AUTO_MERGE: ${{ vars.ORCA_COLORS_AUTO_MERGE }}
           CREATE_UPDATE_PRS: ${{ vars.ORCA_COLORS_CREATE_UPDATE_PRS }}
         with:
           script: |
             const { proposeUpstreamUpdate } = require('./config/scripts/fork-upstream-proposal.cjs')
-            const result = await proposeUpstreamUpdate({ github, context, core, createPullRequests: process.env.CREATE_UPDATE_PRS === 'true' })
+            const result = await proposeUpstreamUpdate({ github, context, core, createPullRequests: process.env.CREATE_UPDATE_PRS === 'true', autoMerge: process.env.AUTO_MERGE === 'true' })
             await core.summary.addHeading('Orca upstream updates').addRaw(
               result.url ? `Review updates: ${result.url}` : 'Staging already contains all upstream commits.'
             ).write()
