@@ -7,9 +7,6 @@ test('agent permissions are scoped and persist without a global Auto option', as
   orcaPage
 }) => {
   await waitForSessionReady(orcaPage)
-  await orcaPage.evaluate(() =>
-    window.__store.getState().updateSettingsOrThrow({ nativeChatPermissionMode: 'accept-edits' })
-  )
   await orcaPage.getByRole('button', { name: 'Settings', exact: true }).click()
   await orcaPage.getByRole('button', { name: 'Agents', exact: true }).click()
   const claude = orcaPage.getByRole('button', { name: 'Claude permissions', exact: true })
@@ -23,11 +20,11 @@ test('agent permissions are scoped and persist without a global Auto option', as
   await expect(claude).toHaveText('Manual')
   await expect(codex).toHaveText('Manual')
 
-  for (const [label, args] of [
-    ['Auto', '--approve-for-me'],
-    ['Yolo', '--dangerously-bypass-approvals-and-sandbox'],
-    ['Manual', ''],
-    ['Auto', '--approve-for-me']
+  for (const [label, args, native] of [
+    ['Auto', '--approve-for-me', 'auto'],
+    ['Yolo', '--dangerously-bypass-approvals-and-sandbox', 'full-access'],
+    ['Manual', '', 'ask'],
+    ['Auto', '--approve-for-me', 'auto']
   ]) {
     await codex.click()
     await orcaPage.getByRole('menuitemradio', { name: label, exact: true }).click()
@@ -40,11 +37,12 @@ test('agent permissions are scoped and persist without a global Auto option', as
           return {
             claude: settings.agentDefaultArgs?.claude,
             codex: settings.agentDefaultArgs?.codex,
-            native: settings.nativeChatPermissionMode
+            fallback: settings.nativeChatPermissionMode,
+            native: settings.agentNativeChatPermissionModes
           }
         })
       )
-      .toEqual({ claude: '', codex: args, native: 'accept-edits' })
+      .toEqual({ claude: '', codex: args, fallback: 'ask', native: { codex: native } })
   }
 
   await claude.click()
@@ -58,6 +56,6 @@ test('agent permissions are scoped and persist without a global Auto option', as
   await expect(claude).toHaveText('Auto')
   await expect(codex).toHaveText('Auto')
   const saved = await orcaPage.evaluate(() => window.api.settings.get())
+  expect(saved.agentNativeChatPermissionModes).toEqual({ codex: 'auto', claude: 'auto' })
   expect(saved.agentDefaultArgs?.['claude-agent-teams']).toBe('')
-  expect(saved.nativeChatPermissionMode).toBe('accept-edits')
 })

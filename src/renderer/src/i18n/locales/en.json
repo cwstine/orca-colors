@@ -192,7 +192,7 @@
   "settings": {
     "chat": {
       "permissionsTitle": "Permissions for new chats",
-      "permissionsDescription": "Applies to new chats only. Agents you open in a terminal use Settings → Agents → Agent Permissions.",
+      "permissionsDescription": "New chats only. Agent-specific defaults are in Settings → Agents.",
       "description": "Choose how chats look and behave.",
       "names": {
         "title": "Chat names",
@@ -392,6 +392,7 @@
       "rowPermissionsLabel": "{{agent}} permissions",
       "customPermissions": "Custom arguments",
       "permissionsScope": "Defaults for new terminals.",
+      "nativePermissionsScope": "Defaults for new sessions.",
       "setAllPermissions": "Set defaults…",
       "setAllManual": "Manual defaults",
       "setAllYolo": "Yolo defaults"

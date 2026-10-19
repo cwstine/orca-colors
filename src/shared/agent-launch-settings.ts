@@ -1,4 +1,5 @@
 import type { GlobalSettings } from './global-settings-types'
+import { agentChatPermissionModes } from './agent-chat-permission-mode'
 import type { TuiAgent } from './tui-agent'
 import { buildDefaultAgentSettingsUpdate } from './default-agent-settings'
 import {
@@ -29,6 +30,8 @@ export type AgentLaunchSettingsSource = Partial<
     | 'agentCmdOverrides'
     | 'agentDefaultArgs'
     | 'agentDefaultEnv'
+    | 'nativeChatPermissionMode'
+    | 'agentNativeChatPermissionModes'
   >
 >
 
@@ -46,7 +49,12 @@ export type AgentLaunchSettings = {
 export type AgentLaunchSettingsMutation =
   | { type: 'default'; agent: GlobalSettings['defaultTuiAgent']; setupOnly?: boolean }
   | { type: 'availability'; agent: TuiAgent; enabled: boolean }
-  | { type: 'permissions'; mode: Exclude<AgentPermissionMode, 'mixed'>; agent?: TuiAgent }
+  | {
+      type: 'permissions'
+      mode: Exclude<AgentPermissionMode, 'mixed'>
+      agent?: TuiAgent
+      syncNativeChat?: true
+    }
   | { type: 'command'; agent: TuiAgent; value: string }
   | { type: 'arguments'; agent: TuiAgent; value: string }
   | { type: 'environment-set'; agent: TuiAgent; name: string; value: string }
@@ -92,6 +100,8 @@ export function agentLaunchSettingsMutationUpdates(
         mutation.enabled
       )
     case 'permissions': {
+      const nativeMode =
+        mutation.mode === 'yolo' ? 'full-access' : mutation.mode === 'auto' ? 'auto' : 'ask'
       if (mutation.agent) {
         const agent = mutation.agent
         if (!(agent in YOLO_TUI_AGENT_ARGS) && !(agent in YOLO_TUI_AGENT_ENV)) {
@@ -109,11 +119,25 @@ export function agentLaunchSettingsMutationUpdates(
         ) {
           throw new Error('Edit custom launch arguments before choosing a permission mode')
         }
-        return applyAgentPermissionMode({ ...settings, mode: mutation.mode, agent })
+        return {
+          ...applyAgentPermissionMode({ ...settings, mode: mutation.mode, agent }),
+          ...(mutation.syncNativeChat && agentChatPermissionModes(agent)
+            ? {
+                agentNativeChatPermissionModes: {
+                  ...settings.agentNativeChatPermissionModes,
+                  [agent]: nativeMode
+                }
+              }
+            : {})
+        }
       }
-      return applyAgentPermissionMode({ ...settings, mode: mutation.mode })
+      return {
+        ...applyAgentPermissionMode({ ...settings, mode: mutation.mode }),
+        ...(mutation.syncNativeChat
+          ? { nativeChatPermissionMode: nativeMode, agentNativeChatPermissionModes: {} }
+          : {})
+      }
     }
-
     case 'command': {
       const commands = { ...settings.agentCmdOverrides }
       if (mutation.value.trim()) {

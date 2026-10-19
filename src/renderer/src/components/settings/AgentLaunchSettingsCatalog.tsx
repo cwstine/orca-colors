@@ -29,7 +29,8 @@ import { translate } from '@/i18n/i18n'
 export type AgentPermissionsRenderer = (
   mode: AgentPermissionMode,
   onChange: (mode: Exclude<AgentPermissionMode, 'mixed'>) => void,
-  autoSupported?: boolean
+  autoSupported?: boolean,
+  nativeChatPermissionsSupported?: boolean
 ) => React.ReactNode
 
 export function AgentLaunchSettingsCatalog({
@@ -40,6 +41,7 @@ export function AgentLaunchSettingsCatalog({
   renderPermissions,
   refreshSettings,
   autoSupported = true,
+  nativeChatPermissionsSupported = false,
   local
 }: {
   settings: AgentLaunchSettings
@@ -49,6 +51,7 @@ export function AgentLaunchSettingsCatalog({
   renderPermissions: AgentPermissionsRenderer
   refreshSettings?: () => void
   autoSupported?: boolean
+  nativeChatPermissionsSupported?: boolean
   local?: {
     settings: GlobalSettings
     updateSettings: (updates: Partial<GlobalSettings>) => void | Promise<void>
@@ -68,7 +71,11 @@ export function AgentLaunchSettingsCatalog({
     (agent) => detectedIds !== null && !detectedIds.has(agent.id)
   )
   const save = (mutation: AgentLaunchSettingsMutation): void => {
-    void mutate(mutation).catch(() => {})
+    const scopedMutation =
+      mutation.type === 'permissions' && nativeChatPermissionsSupported
+        ? { ...mutation, syncNativeChat: true as const }
+        : mutation
+    void mutate(scopedMutation).catch(() => {})
   }
   const rowProps = (
     agent: (typeof catalog)[number],
@@ -148,7 +155,8 @@ export function AgentLaunchSettingsCatalog({
       {renderPermissions(
         settings.autoPermissionMode ? 'auto' : settings.permissionMode,
         (mode) => save({ type: 'permissions', mode }),
-        autoSupported
+        autoSupported,
+        nativeChatPermissionsSupported
       )}
       <AgentDetectionCatalog
         detectedAgents={detectedAgents}

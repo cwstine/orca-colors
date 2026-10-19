@@ -1,56 +1,58 @@
 import { describe, expect, it } from 'vitest'
 import { agentLaunchSettingsMutationUpdates } from './agent-launch-settings'
-import { YOLO_TUI_AGENT_ARGS } from './tui-agent-permissions'
+import { structuredLaunchSeedOptions } from './native-chat-session-option-defaults'
 
-const settings = { agentDefaultArgs: { ...YOLO_TUI_AGENT_ARGS } }
-
-describe('terminal agent permission settings', () => {
-  it.each(['darwin', 'linux', 'win32'] as const)('changes only Codex on %s', (platform) => {
+describe('agent permission presets and new chats', () => {
+  it.each([
+    ['auto', 'auto'],
+    ['yolo', 'full-access'],
+    ['manual', 'ask']
+  ] as const)('uses %s as the terminal preset and %s as the new chat default', (mode, expected) => {
     const updates = agentLaunchSettingsMutationUpdates(
-      settings,
-      { type: 'permissions', agent: 'codex', mode: 'auto' },
-      platform
+      { nativeChatPermissionMode: 'accept-edits' },
+      { type: 'permissions', syncNativeChat: true, mode },
+      'linux'
     )
-    expect(updates.agentDefaultArgs?.codex).toBe('--approve-for-me')
-    expect(updates.agentDefaultArgs?.claude).toBe(YOLO_TUI_AGENT_ARGS.claude)
-    expect(updates.agentDefaultArgs?.gemini).toBe(YOLO_TUI_AGENT_ARGS.gemini)
-    expect(updates).not.toHaveProperty('nativeChatPermissionMode')
-    expect(updates).not.toHaveProperty('agentNativeChatPermissionModes')
-  })
-
-  it.each(['auto', 'yolo', 'manual'] as const)(
-    'keeps %s terminal changes independent of native chat',
-    (mode) => {
-      const before = { ...settings, nativeChatPermissionMode: 'accept-edits' as const }
-      const updates = agentLaunchSettingsMutationUpdates(
-        before,
-        { type: 'permissions', mode },
-        'linux'
-      )
-      expect(updates).not.toHaveProperty('nativeChatPermissionMode')
-      expect({ ...before, ...updates }.nativeChatPermissionMode).toBe('accept-edits')
+    expect(updates.nativeChatPermissionMode).toBe(expected)
+    for (const agent of ['claude', 'codex'] as const) {
+      expect(structuredLaunchSeedOptions(updates, agent)).toEqual({ permissionMode: expected })
     }
-  )
-
-  it('rejects custom arguments without losing them', () => {
-    const before = { agentDefaultArgs: { codex: '--model custom --approve-for-me' } }
-    expect(() =>
-      agentLaunchSettingsMutationUpdates(
-        before,
-        { type: 'permissions', agent: 'codex', mode: 'manual' },
-        'linux'
-      )
-    ).toThrow('custom launch arguments')
-    expect(before.agentDefaultArgs.codex).toBe('--model custom --approve-for-me')
   })
 
-  it('rejects Auto for agents without a reviewer', () => {
-    expect(() =>
-      agentLaunchSettingsMutationUpdates(
-        settings,
-        { type: 'permissions', agent: 'gemini', mode: 'auto' },
-        'linux'
-      )
-    ).toThrow('does not support')
+  it('narrows Auto to Ask for new chats whose agents have no automatic reviewer', () => {
+    const settings = agentLaunchSettingsMutationUpdates(
+      {},
+      { type: 'permissions', syncNativeChat: true, mode: 'auto' },
+      'linux'
+    )
+    expect(structuredLaunchSeedOptions(settings, 'omp')).toEqual({ permissionMode: 'ask' })
+    expect(structuredLaunchSeedOptions(settings, 'pi')).toBeUndefined()
+  })
+
+  it('keeps the separate chat default when editing terminal arguments', () => {
+    const updates = agentLaunchSettingsMutationUpdates(
+      { nativeChatPermissionMode: 'accept-edits' },
+      { type: 'arguments', agent: 'claude', value: '--permission-mode auto' },
+      'linux'
+    )
+    expect(updates).not.toHaveProperty('nativeChatPermissionMode')
   })
 })
+
+it.each(['manual', 'yolo', 'auto'] as const)(
+  'keeps legacy %s mutations terminal-only on native-capable hosts',
+  (mode) => {
+    const before = {
+      nativeChatPermissionMode: 'accept-edits' as const,
+      agentNativeChatPermissionModes: { codex: 'auto' as const }
+    }
+    const updates = agentLaunchSettingsMutationUpdates(
+      before,
+      { type: 'permissions', mode },
+      'linux'
+    )
+    expect(updates).not.toHaveProperty('nativeChatPermissionMode')
+    expect(updates).not.toHaveProperty('agentNativeChatPermissionModes')
+    expect({ ...before, ...updates }.nativeChatPermissionMode).toBe('accept-edits')
+  }
+)

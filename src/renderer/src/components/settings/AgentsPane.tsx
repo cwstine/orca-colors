@@ -57,16 +57,22 @@ type AgentsPaneProps = AgentSettingProps & {
 }
 
 export function AgentPermissionsSetting({
-  onChange
+  onChange,
+  nativeChatPermissionsSupported = false
 }: {
   mode: AgentPermissionMode
   onChange: (mode: Exclude<AgentPermissionMode, 'mixed'>) => void
   autoSupported?: boolean
+  nativeChatPermissionsSupported?: boolean
 }): React.JSX.Element {
   return (
     <SettingsSubsectionHeader
       title={translate('auto.components.settings.AgentsPane.agentPermissions', 'Agent Permissions')}
-      description={translate('settings.agents.permissionsScope', 'Defaults for new terminals.')}
+      description={
+        nativeChatPermissionsSupported
+          ? translate('settings.agents.nativePermissionsScope', 'Defaults for new sessions.')
+          : translate('settings.agents.permissionsScope', 'Defaults for new terminals.')
+      }
       action={
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -141,9 +147,17 @@ export function AgentsPane({
 function renderAgentPermissions(
   mode: AgentPermissionMode,
   onChange: (mode: Exclude<AgentPermissionMode, 'mixed'>) => void,
-  autoSupported?: boolean
+  autoSupported?: boolean,
+  nativeChatPermissionsSupported?: boolean
 ): React.ReactNode {
-  return <AgentPermissionsSetting mode={mode} onChange={onChange} autoSupported={autoSupported} />
+  return (
+    <AgentPermissionsSetting
+      mode={mode}
+      onChange={onChange}
+      autoSupported={autoSupported}
+      nativeChatPermissionsSupported={nativeChatPermissionsSupported}
+    />
+  )
 }
 
 export function AgentStatusHooksSetting({ settings, updateSettings }: AgentSettingProps) {

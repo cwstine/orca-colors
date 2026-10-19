@@ -3246,6 +3246,9 @@
     }
   },
   "settings": {
+    "agents": {
+      "permissionsScope": "Defaults for new terminals."
+    },
     "browser": {
       "clientHostedRemote": {
         "description": "Render remote workspace pages on this desktop; network traffic still goes through the remote host. Applies to new pages only.",

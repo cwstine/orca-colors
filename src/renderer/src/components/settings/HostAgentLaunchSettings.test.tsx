@@ -17,12 +17,14 @@ const transport = vi.hoisted(() => ({
   read: vi.fn(),
   mutate: vi.fn(),
   detection: vi.fn(),
-  auto: vi.fn()
+  auto: vi.fn(),
+  native: vi.fn()
 }))
 vi.mock('./agent-launch-settings-transport', () => ({
   readHostAgentLaunchSettings: transport.read,
   mutateHostAgentLaunchSettings: transport.mutate,
-  hostSupportsAutoPermissions: transport.auto
+  hostSupportsAutoPermissions: transport.auto,
+  hostSupportsNativeChatPermissions: transport.native
 }))
 vi.mock('@/hooks/useDetectedAgents', () => ({
   useDetectedAgents: (target: unknown) => {
@@ -61,6 +63,7 @@ beforeEach(() => {
   transport.mutate.mockReset().mockResolvedValue(host())
   transport.detection.mockClear()
   transport.auto.mockReset().mockResolvedValue(true)
+  transport.native.mockReset().mockResolvedValue(true)
 })
 
 describe('host launch settings form', () => {
@@ -74,11 +77,12 @@ describe('host launch settings form', () => {
             environmentId="ssh-host"
             pairingRevision={17}
             hostName="SSH host"
-            renderPermissions={(mode, onChange, autoSupported) => (
+            renderPermissions={(mode, onChange, autoSupported, nativeChatPermissionsSupported) => (
               <AgentPermissionsSetting
                 mode={mode}
                 onChange={onChange}
                 autoSupported={autoSupported}
+                nativeChatPermissionsSupported={nativeChatPermissionsSupported}
               />
             )}
           />
@@ -91,6 +95,52 @@ describe('host launch settings form', () => {
         expect(control?.hasAttribute('disabled')).toBe(true)
       }
       expect(screen.queryByRole('radio', { name: /^Auto$/ })).toBeNull()
+    }
+  )
+
+  it.each([false, true])(
+    'uses host-supported scope and wire fields for native synchronization: %s',
+    async (nativeSupported) => {
+      transport.native.mockResolvedValue(nativeSupported)
+      render(
+        <TooltipProvider>
+          <HostAgentLaunchSettings
+            environmentId="ssh-host"
+            pairingRevision={17}
+            hostName="SSH host"
+            renderPermissions={(mode, onChange, autoSupported, nativeChatPermissionsSupported) => (
+              <AgentPermissionsSetting
+                mode={mode}
+                onChange={onChange}
+                autoSupported={autoSupported}
+                nativeChatPermissionsSupported={nativeChatPermissionsSupported}
+              />
+            )}
+          />
+        </TooltipProvider>
+      )
+      await screen.findByDisplayValue('--host-marker')
+      expect(
+        screen.getByText(
+          nativeSupported ? 'Defaults for new sessions.' : 'Defaults for new terminals.'
+        )
+      ).toBeTruthy()
+      fireEvent.pointerDown(screen.getByRole('button', { name: 'Set defaults…' }), {
+        button: 0,
+        ctrlKey: false
+      })
+      fireEvent.click(await screen.findByRole('menuitem', { name: 'Manual defaults' }))
+      await waitFor(() =>
+        expect(transport.mutate).toHaveBeenCalledWith(
+          { environmentId: 'ssh-host', pairingRevision: 17 },
+          {
+            type: 'permissions',
+            mode: 'manual',
+            ...(nativeSupported ? { syncNativeChat: true } : {})
+          },
+          expect.any(AbortSignal)
+        )
+      )
     }
   )
 
@@ -189,7 +239,7 @@ describe('host launch settings form', () => {
       </TooltipProvider>
     )
     const args = await screen.findByDisplayValue('--host-marker')
-    expect(screen.getByText('Defaults for new terminals.')).toBeTruthy()
+    expect(screen.getByText('Defaults for new sessions.')).toBeTruthy()
     expect(screen.queryByDisplayValue('--desktop-marker')).toBeNull()
     fireEvent.change(args, { target: { value: '--r10-marker' } })
     fireEvent.blur(args)
@@ -207,7 +257,7 @@ describe('host launch settings form', () => {
     await waitFor(() =>
       expect(transport.mutate).toHaveBeenCalledWith(
         { environmentId: 'ssh-host', pairingRevision: 17 },
-        { type: 'permissions', mode: 'manual' },
+        { type: 'permissions', mode: 'manual', syncNativeChat: true },
         expect.any(AbortSignal)
       )
     )
@@ -227,7 +277,7 @@ describe('host launch settings form', () => {
     await waitFor(() =>
       expect(transport.mutate).toHaveBeenCalledWith(
         { environmentId: 'ssh-host', pairingRevision: 17 },
-        { type: 'permissions', mode: 'manual' },
+        { type: 'permissions', mode: 'manual', syncNativeChat: true },
         expect.any(AbortSignal)
       )
     )
@@ -271,7 +321,11 @@ describe('host launch settings form', () => {
     expect(transport.mutate).toHaveBeenCalledTimes(1)
     finishArguments(projectAgentLaunchSettings({ agentDefaultArgs: { claude: '--next-marker' } }))
     await waitFor(() => expect(transport.mutate).toHaveBeenCalledTimes(2))
-    expect(transport.mutate.mock.calls[1]?.[1]).toEqual({ type: 'permissions', mode: 'manual' })
+    expect(transport.mutate.mock.calls[1]?.[1]).toEqual({
+      type: 'permissions',
+      mode: 'manual',
+      syncNativeChat: true
+    })
   })
 
   it('does not display launch controls or local defaults for an old server', async () => {
