@@ -6,6 +6,7 @@
 // position report instead of a flicker.
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { findActiveNativeChatRailItem } from './native-chat-active-rail-item'
 import { ALIGN_ARRIVED_PX } from './use-native-chat-viewport-align'
 import {
@@ -172,7 +173,7 @@ export function useNativeChatMessageRail({
       setMaxTicks(nativeChatRailTickCapacity(element.clientHeight))
     }
     measure()
-    const observer = new ResizeObserver(measure)
+    const observer = new ResizeObserver(() => flushSync(measure))
     observer.observe(element)
     return () => observer.disconnect()
   }, [scrollRef])
