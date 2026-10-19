@@ -1,12 +1,16 @@
 const STATUS = 'Orca Colors checks'
 
 function checkPull(pull) {
+  const legacyUpstream = pull.head.repo?.full_name === 'stablyai/orca' && pull.head.ref === 'main'
+  const pinnedUpstream =
+    pull.head.repo?.full_name === 'cwstine/orca-colors' &&
+    /^[a-f0-9]{40}$/.test(pull.head.sha) &&
+    pull.head.ref === `updates/orca-main-${pull.head.sha}`
   if (
     pull.state !== 'open' ||
     pull.base.ref !== 'staging' ||
     pull.base.repo.full_name !== 'cwstine/orca-colors' ||
-    pull.head.repo?.full_name !== 'stablyai/orca' ||
-    pull.head.ref !== 'main'
+    (!legacyUpstream && !pinnedUpstream)
   ) {
     throw new Error('Only open upstream Orca updates targeting this fork staging are supported.')
   }

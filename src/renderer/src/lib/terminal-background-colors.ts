@@ -15,6 +15,7 @@ type ColorState = ColorRecords & {
     target: TerminalColorTarget,
     color: string | null
   ) => boolean
+  setProjectColor: (projectId: string, color: string | null) => boolean
   reload: () => void
 }
 
@@ -67,15 +68,13 @@ function readColors(storage?: ColorStorage): ColorRecords {
 }
 
 export function createTerminalBackgroundColorStore(storage?: ColorStorage) {
-  return createStore<ColorState>((set) => ({
-    ...readColors(storage),
-    reload: () => set(readColors(storage)),
-    setColor: (scope, target, color) => {
+  return createStore<ColorState>((set) => {
+    const saveColor = (
+      scope: TerminalColorScope,
+      key: string | null,
+      color: string | null
+    ): boolean => {
       const normalized = color === null ? null : normalizeRepoBadgeColor(color)
-      const key =
-        scope === 'pane'
-          ? getTerminalColorPaneKey(target)
-          : getTerminalColorProjectKey(target.worktreeId)
       if (!storage || !key || (color !== null && !normalized)) {
         return false
       }
@@ -95,7 +94,20 @@ export function createTerminalBackgroundColorStore(storage?: ColorStorage) {
       set(next)
       return true
     }
-  }))
+    return {
+      ...readColors(storage),
+      reload: () => set(readColors(storage)),
+      setProjectColor: (projectId, color) => saveColor('project', projectId, color),
+      setColor: (scope, target, color) =>
+        saveColor(
+          scope,
+          scope === 'pane'
+            ? getTerminalColorPaneKey(target)
+            : getTerminalColorProjectKey(target.worktreeId),
+          color
+        )
+    }
+  })
 }
 
 function browserStorage(): ColorStorage | undefined {

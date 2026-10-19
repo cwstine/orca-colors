@@ -6,6 +6,7 @@ import {
   FolderInput,
   FolderTree,
   Plus,
+  Palette,
   // `Shapes` is lucide-react's own export name; exempted in config/oxlint-anti-slop.json.
   Shapes,
   SlidersHorizontal,
@@ -25,7 +26,10 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import { translate } from '@/i18n/i18n'
-import { getRepositoryIconSectionId } from '@/components/settings/repository-settings-targets'
+import {
+  getRepositoryIconSectionId,
+  getRepositoryTerminalColorSectionId
+} from '@/components/settings/repository-settings-targets'
 import type { ProjectGroup } from '../../../../../../shared/project-group-types'
 import type { Repo } from '../../../../../../shared/repo-types'
 import type { WorktreeVisibilityDefaults } from '../../../../../../shared/global-settings-types'
@@ -128,6 +132,14 @@ export function RepoHeaderProjectActionsMenu({
         >
           <Shapes className="size-3.5" />
           {translate('auto.components.sidebar.WorktreeList.e82d3589a1', 'Change Project Icon')}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() =>
+            actions.onOpenRepoSettings(repo.id, getRepositoryTerminalColorSectionId(repo.id))
+          }
+        >
+          <Palette className="size-3.5" />
+          {translate('fork.colors.projectMenu', 'Terminal Background…')}
         </DropdownMenuItem>
         {isGitRepoKind(repo) ? (
           <DropdownMenuItem onSelect={() => actions.onOpenWorktreeVisibility(repo)}>

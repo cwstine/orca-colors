@@ -82,3 +82,25 @@ for (const part of ['head', 'base']) {
     assert.equal(f.statuses[0].sha, 'head')
   })
 }
+
+test('accepts an immutable upstream snapshot in this fork', async () => {
+  const f = fixture()
+  f.pull.head = {
+    ref: `updates/orca-main-${  'a'.repeat(40)}`,
+    sha: 'a'.repeat(40),
+    repo: { full_name: 'cwstine/orca-colors' }
+  }
+  f.merge.parents[1].sha = f.pull.head.sha
+  await prepare(f)
+  assert.equal(f.outputs.head, f.pull.head.sha)
+})
+test('rejects a snapshot branch whose name no longer matches its commit', async () => {
+  const f = fixture()
+  f.pull.head = {
+    ref: `updates/orca-main-${  'a'.repeat(40)}`,
+    sha: 'b'.repeat(40),
+    repo: { full_name: 'cwstine/orca-colors' }
+  }
+  await assert.rejects(prepare(f), /Only open upstream/)
+  assert.equal(f.statuses.length, 0)
+})

@@ -23,6 +23,7 @@ export function getRepositoryPaneSearchEntries(
     (Boolean(options.windowsRuntimeSupported) &&
       getRepoExecutionHostId(repo) === LOCAL_EXECUTION_HOST_ID)
   return [
+    getRepositoryTerminalColorSearchEntry(repo),
     {
       title: translate('components.RepositoryJiraProjectSection.title', 'Default Jira project'),
       description: translate(
@@ -242,4 +243,17 @@ export function getRepositoryPaneSearchEntries(
       ? []
       : [...getRepositoryGitAuthorSearchEntries(repo), ...getRepositoryGitHooksSearchEntries(repo)])
   ]
+}
+
+export function getRepositoryTerminalColorSearchEntry(
+  repo: Pick<Repo, 'displayName' | 'path'>
+): SettingsSearchEntry {
+  return {
+    title: translate('fork.colors.projectSetting', 'Terminal Background'),
+    description: translate(
+      'fork.colors.projectSettingHelp',
+      'Default background for this project’s existing and new terminals, including all worktrees. Individual terminal colors take priority.'
+    ),
+    keywords: [repo.displayName, repo.path, 'terminal background', 'project color', 'default color']
+  }
 }

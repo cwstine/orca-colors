@@ -4,6 +4,8 @@ Personal fork of [stablyai/orca](https://github.com/stablyai/orca), maintained a
 
 ## Terminal colors
 
+Open a project’s **⋯ → Terminal Background…**, or **Project Settings → Terminal Background**, to choose a preset or custom color for all its terminals. Changes save immediately and apply across worktrees; **Use Terminal Theme** clears the project default. Individual terminal overrides remain in force.
+
 Right-click a terminal pane and open **Background Color**:
 
 - Choose Navy, Plum, Forest, Olive, Teal or Maroon, or **Custom Color…** for the existing color picker and hex input.
@@ -18,13 +20,13 @@ Preferences are saved in the local profile's renderer storage (`orca-colors.back
 
 ## Upstream updates
 
-**Fork upstream updates** runs daily at **11:23 UTC** and can also be run from the Actions page. It compares upstream `stablyai/orca:main` with this fork's `staging` branch and opens one update PR when there are new commits. Automatic PR creation is enabled through `ORCA_COLORS_CREATE_UPDATE_PRS=true` and the approved GitHub workflow permission. If that variable is disabled, the workflow falls back to reporting a comparison link. An existing open PR continues tracking upstream directly, so repeated runs do not create duplicates.
+**Fork upstream updates** runs **hourly at minute 23** and can also be run from the Actions page. It compares upstream `stablyai/orca:main` with this fork's `staging` branch and opens one update PR when there are new commits. Automatic PR creation is enabled through `ORCA_COLORS_CREATE_UPDATE_PRS=true` and the approved GitHub workflow permission. If that variable is disabled, the workflow falls back to reporting a comparison link. Each update uses a branch pinned to one upstream commit. While that PR is open, repeated runs retry its checks without moving its source branch. Newer upstream commits are picked up after it merges, so a busy upstream cannot keep invalidating the same update. GitHub may delay scheduled runs; this is hourly polling, not immediate delivery.
 
 Updates are **merged automatically after the required fork checks pass**, using `ORCA_COLORS_AUTO_MERGE=true` and GitHub auto-merge. Checks test a pinned merge of upstream and this fork, with a required `Orca Colors checks` status on the upstream commit. Conflicts and failed checks leave the PR open for attention. This tracks all changes on upstream main, including changes before an official release. Rebuild the app after source updates; this workflow does not install app updates.
 
 **Fork checks** tests the color feature, updater guard, automation and renderer types using standard GitHub runners. Upstream's inherited workflows use Stably infrastructure and are kept disabled in this fork; their YAML remains intact to reduce future merge conflicts. These focused checks do not replace upstream's full multi-platform test matrix.
 
-The daily update workflow explicitly dispatches **Fork checks** from trusted `staging` with the upstream PR number, avoiding bot-created PR approval prompts. Candidate code runs in a separate job with read-only permissions and no secrets. A separate trusted job publishes the required status only if the tested head and base are still current. To retry, run **Fork upstream updates** manually. If conflicts prevent a merge candidate from existing, resolve them first. GitHub may disable scheduled workflows after 60 days without repository activity; re-enable **Fork upstream updates** on the Actions page if that happens.
+The hourly update workflow explicitly dispatches **Fork checks** from trusted `staging` with the upstream PR number, avoiding bot-created PR approval prompts. Candidate code runs in a separate job with read-only permissions and no secrets. A separate trusted job publishes the required status only if the tested head and base are still current. To retry, run **Fork upstream updates** manually. If conflicts prevent a merge candidate from existing, resolve them first. GitHub may disable scheduled workflows after 60 days without repository activity; re-enable **Fork upstream updates** on the Actions page if that happens.
 
 ## Develop and build on macOS
 

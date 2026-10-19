@@ -63,7 +63,7 @@ jobs:
       - name: Color and upstream automation tests
         run: |
           node --test config/scripts/fork-upstream-proposal.test.cjs config/scripts/fork-mac-launcher.test.cjs config/scripts/fork-check-status.test.cjs
-          pnpm exec vitest run --config config/vitest.config.ts src/renderer/src/lib/terminal-background-colors.test.ts src/renderer/src/components/terminal-pane/compose-active-terminal-theme.test.ts src/renderer/src/components/terminal-pane/terminal-appearance.test.ts src/renderer/src/components/terminal-pane/TerminalBackgroundColorMenu.test.tsx src/shared/orca-colors-build.test.ts src/main/updater.orca-colors.test.ts
+          pnpm exec vitest run --config config/vitest.config.ts src/renderer/src/lib/terminal-background-colors.test.ts src/renderer/src/components/terminal-pane/compose-active-terminal-theme.test.ts src/renderer/src/components/terminal-pane/terminal-appearance.test.ts src/renderer/src/components/terminal-pane/TerminalBackgroundColorMenu.test.tsx src/shared/orca-colors-build.test.ts src/main/updater.orca-colors.test.ts src/renderer/src/components/settings/RepositoryTerminalColorSection.test.tsx
       - run: node config/scripts/run-typecheck-projects-in-parallel.mjs --compiler=native --project=config/tsconfig.tc.web.json
       - name: Lint color feature
         run: pnpm exec oxlint src/renderer/src/lib/terminal-background-colors.ts src/renderer/src/lib/terminal-background-colors.test.ts src/renderer/src/components/terminal-pane/TerminalBackgroundColorMenu.tsx src/renderer/src/components/terminal-pane/TerminalBackgroundColorDialog.tsx src/shared/orca-colors-build.ts
@@ -91,3 +91,25 @@ jobs:
             const { publish } = require('./config/scripts/fork-check-status.cjs')
             await publish({ github, context, number: Number(process.env.PR_NUMBER),
               head: process.env.TESTED_HEAD, base: process.env.TESTED_BASE, result: process.env.RESULT })
+
+  report-feature:
+    needs: validate
+    if: always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - uses: actions/github-script@v7
+        env:
+          RESULT: ${{ needs.validate.result }}
+        with:
+          script: |
+            const tested = context.payload.pull_request
+            const current = (await github.rest.pulls.get({ ...context.repo, pull_number: tested.number })).data
+            const base = (await github.rest.git.getRef({ ...context.repo, ref: 'heads/staging' })).data.object.sha
+            const passed = process.env.RESULT === 'success' && current.head.sha === tested.head.sha && base === tested.base.sha
+            await github.rest.repos.createCommitStatus({ ...context.repo,
+              sha: tested.head.sha, context: 'Orca Colors checks', state: passed ? 'success' : 'failure',
+              description: passed ? 'Fork tests, types and lint passed' : 'Validation failed or revisions changed; rerun checks',
+              target_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}` })
