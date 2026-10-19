@@ -1,7 +1,7 @@
 name: Fork upstream updates
 on:
   schedule:
-    - cron: '23 11 * * *'
+    - cron: '23 * * * *'
   workflow_dispatch:
 permissions:
   contents: write
