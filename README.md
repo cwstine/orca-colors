@@ -1,3 +1,5 @@
+> **Orca Colors fork:** Persistent per-terminal backgrounds and project defaults. See [FORK.md](./FORK.md) for usage, builds and automatic upstream update proposals. Custom development lives on `staging`.
+
 <h1 align="center">
   <a href="https://onOrca.dev"><img src="resources/build/icon.png" alt="Orca" width="64" valign="middle" /></a> Orca
 </h1>

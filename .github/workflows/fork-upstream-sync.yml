@@ -1,0 +1,31 @@
+name: Fork upstream updates
+on:
+  schedule:
+    - cron: '23 11 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+  pull-requests: write
+concurrency:
+  group: fork-upstream-updates
+  cancel-in-progress: false
+jobs:
+  propose:
+    if: github.repository == 'cwstine/orca-colors'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: staging
+          persist-credentials: false
+      - uses: actions/github-script@v7
+        env:
+          CREATE_UPDATE_PRS: ${{ vars.ORCA_COLORS_CREATE_UPDATE_PRS }}
+        with:
+          script: |
+            const { proposeUpstreamUpdate } = require('./config/scripts/fork-upstream-proposal.cjs')
+            const result = await proposeUpstreamUpdate({ github, context, core, createPullRequests: process.env.CREATE_UPDATE_PRS === 'true' })
+            await core.summary.addHeading('Orca upstream updates').addRaw(
+              result.url ? `Review updates: ${result.url}` : 'Staging already contains all upstream commits.'
+            ).write()

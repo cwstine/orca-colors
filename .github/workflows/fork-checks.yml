@@ -1,0 +1,43 @@
+name: Fork checks
+on:
+  push:
+    branches: [staging, 'feat/**']
+  pull_request:
+    branches: [staging]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Revision to test (for example refs/pull/1/merge)'
+        default: staging
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: fork-checks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    if: github.repository == 'cwstine/orca-colors'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ORCA_BACKGROUND_LAUNCH: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: package.json
+      - run: npm install --global corepack
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm run build:packages
+      - name: Color and upstream automation tests
+        run: |
+          node --test config/scripts/fork-upstream-proposal.test.cjs config/scripts/fork-mac-launcher.test.cjs
+          pnpm exec vitest run --config config/vitest.config.ts src/renderer/src/lib/terminal-background-colors.test.ts src/renderer/src/components/terminal-pane/compose-active-terminal-theme.test.ts src/renderer/src/components/terminal-pane/terminal-appearance.test.ts src/renderer/src/components/terminal-pane/TerminalBackgroundColorMenu.test.tsx src/shared/orca-colors-build.test.ts src/main/updater.orca-colors.test.ts
+      - run: node config/scripts/run-typecheck-projects-in-parallel.mjs --compiler=native --project=config/tsconfig.tc.web.json
+      - name: Lint color feature
+        run: pnpm exec oxlint src/renderer/src/lib/terminal-background-colors.ts src/renderer/src/lib/terminal-background-colors.test.ts src/renderer/src/components/terminal-pane/TerminalBackgroundColorMenu.tsx src/renderer/src/components/terminal-pane/TerminalBackgroundColorDialog.tsx src/shared/orca-colors-build.ts
