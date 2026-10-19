@@ -19,6 +19,7 @@ import type { SettingsProjectRemovalScope } from './settings-project-list'
 import { matchesSettingsSearch } from './settings-search'
 import { useAppStore } from '../../store'
 import { getRepositoryIconSectionId } from './repository-settings-targets'
+import { RepositoryTerminalColorSection } from './RepositoryTerminalColorSection'
 import { RepositoryIconPicker } from './RepositoryIconPicker'
 import { getRepositoryPaneSearchEntries } from './repository-search'
 import { RepositoryHostSetupsSection } from './RepositoryHostSetupsSection'
@@ -306,6 +307,12 @@ export function RepositoryPane({
         >
           <RepositoryIconPicker repo={repo} updateRepo={updateSelectedRepo} />
         </SearchableSetting>
+
+        <RepositoryTerminalColorSection
+          key={repo.id}
+          repo={repo}
+          forceVisible={forceFullPaneForRepoMatch}
+        />
 
         <RepositoryJiraProjectSection
           key={`${selectedHostId}:${repo.id}`}

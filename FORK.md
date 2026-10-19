@@ -4,6 +4,8 @@ Personal fork of [stablyai/orca](https://github.com/stablyai/orca), maintained a
 
 ## Terminal colors
 
+Open a project’s **⋯ → Terminal Background…**, or **Project Settings → Terminal Background**, to choose a preset or custom color for all its terminals. Changes save immediately and apply across worktrees; **Use Terminal Theme** clears the project default. Individual terminal overrides remain in force.
+
 Right-click a terminal pane and open **Background Color**:
 
 - Choose Navy, Plum, Forest, Olive, Teal or Maroon, or **Custom Color…** for the existing color picker and hex input.
