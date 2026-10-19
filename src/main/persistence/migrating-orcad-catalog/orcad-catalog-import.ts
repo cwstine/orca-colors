@@ -2,6 +2,8 @@ import { MAX_ORCAD_MIGRATION_STAGED_CATALOGS } from '../../../shared/orcad-migra
 import { ORCAD_MIGRATION_MANIFEST_VERSION } from '../../../shared/orcad-migration/orcad-migration-manifest-validation'
 import type {
   OrcadMigrationCatalogAbortResult,
+  OrcadMigrationCatalogReference,
+  OrcadMigrationCatalogReferenceAbortResult,
   OrcadMigrationCatalogState,
   OrcadMigrationImportReceipt,
   OrcadMigrationManifest
@@ -53,6 +55,11 @@ import {
 } from './orcad-migration-blob-staging'
 import { assertOrcadMigrationBlobContentsValid } from './orcad-migration-blob-installers'
 import { readDeclaredOrcadMigrationEditorDrafts } from './orcad-destination-editor-drafts'
+import {
+  abortOrcadMigrationCatalogByReference,
+  committedMigrations,
+  stagedManifests
+} from './orcad-catalog-reference-abort'
 
 type OrcadCatalogImportRuntime = OrcadMigrationCommitGenerationRuntime &
   Pick<StoreRuntimeState, 'state' | 'terminalScrollbackSnapshotStorage' | 'orcadMigrationBlobRoot'>
@@ -200,6 +207,17 @@ export class OrcadCatalogImportPersistence {
     return { ...absentCatalogState(manifest), aborted: true }
   }
 
+  /** For a source whose manifest no request can carry: this server's own copy stands in for it. */
+  abortStagedOrcadMigrationCatalogByReference(
+    reference: OrcadMigrationCatalogReference
+  ): OrcadMigrationCatalogReferenceAbortResult {
+    return abortOrcadMigrationCatalogByReference(
+      this[orcadCatalogImportContext].runtime.state,
+      reference,
+      (manifest) => this.abortStagedOrcadMigrationCatalog(manifest)
+    )
+  }
+
   getOrcadMigrationCatalogState(manifest: OrcadMigrationManifest): OrcadMigrationCatalogState {
     const context = this[orcadCatalogImportContext]
     return migrationCatalogState(context.runtime, manifest)
@@ -255,19 +273,6 @@ function migrationCatalogState(
   }
   assertSameOrcadMigrationManifest(staged.manifest, manifest)
   return stagedCatalogState(manifest, staged.stagedAt, runtime)
-}
-
-function stagedManifests(state: StoreRuntimeState['state']): OrcadMigrationManifest[] {
-  return (state.orcadMigrationStagedCatalogs ?? []).map((entry) => entry.manifest)
-}
-
-function committedMigrations(
-  state: StoreRuntimeState['state']
-): { migrationId: string; manifestSha256: string }[] {
-  return [
-    ...(state.orcadMigrationImportReceipts ?? []),
-    ...(state.orcadMigrationEvictedReceipts ?? [])
-  ]
 }
 
 /**
