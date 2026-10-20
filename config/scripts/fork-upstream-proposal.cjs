@@ -50,6 +50,28 @@ async function proposeUpstreamUpdate({
   try {
     await github.rest.git.createRef({ ...repo, ref: `refs/heads/${branch}`, sha })
   } catch (error) {
+    if (error.status === 403) {
+      core.info(
+        'GitHub denied the snapshot ref; using the upstream PR with bounded validation retries.'
+      )
+      const legacy = open.find(
+        (pull) => pull.head.repo?.full_name === 'stablyai/orca' && pull.head.ref === 'main'
+      )
+      const pull =
+        legacy ??
+        (
+          await github.rest.pulls.create({
+            ...repo,
+            base: 'staging',
+            head: 'stablyai:main',
+            title: 'Update Orca Colors from upstream main',
+            body: 'Merges upstream Orca main into staging while preserving the color features. GitHub’s built-in token cannot snapshot commits containing workflow changes, so Fork checks retries up to three times when upstream moves during validation. Only a current, passing revision can merge automatically. Source updates do not install desktop app updates.',
+            maintainer_can_modify: false
+          })
+        ).data
+      await configureUpdate(pull)
+      return { changed: true, url: pull.html_url }
+    }
     if (error.status !== 422) {
       throw error
     }
