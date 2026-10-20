@@ -29,13 +29,15 @@ async function prepare({ github, context, core, number }) {
   })
   const merge = (await github.rest.repos.getCommit({ ...repo, ref: `refs/pull/${number}/merge` }))
     .data
-  if (merge.parents[0]?.sha !== pull.base.sha || merge.parents[1]?.sha !== pull.head.sha) {
+  const currentBase = (await github.rest.git.getRef({ ...repo, ref: 'heads/staging' })).data.object
+    .sha
+  if (merge.parents[0]?.sha !== currentBase || merge.parents[1]?.sha !== pull.head.sha) {
     throw new Error('Merge candidate is stale or has conflicts; retry after GitHub refreshes it.')
   }
   for (const [key, value] of Object.entries({
     merge: merge.sha,
     head: pull.head.sha,
-    base: pull.base.sha
+    base: currentBase
   })) {
     core.setOutput(key, value)
   }

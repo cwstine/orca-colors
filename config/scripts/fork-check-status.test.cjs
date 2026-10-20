@@ -153,3 +153,12 @@ test('never enables auto-merge when validation failed', async () => {
   await publish(f)
   assert.equal(f.statuses[0].state, 'failure')
 })
+
+test('uses the live staging tip when PR metadata still points to an older base', async () => {
+  const f = fixture()
+  f.github.rest.git.getRef = async () => ({ data: { object: { sha: 'current-base' } } })
+  f.merge.parents[0].sha = 'current-base'
+  await prepare(f)
+  assert.equal(f.outputs.base, 'current-base')
+  assert.equal(f.outputs.merge, 'merge')
+})
