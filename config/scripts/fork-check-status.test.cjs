@@ -7,6 +7,7 @@ function fixture() {
   const outputs = {}
   const pull = {
     state: 'open',
+    node_id: 'PR_1',
     base: { ref: 'staging', sha: 'base', repo: { full_name: 'cwstine/orca-colors' } },
     head: { ref: 'main', sha: 'head', repo: { full_name: 'stablyai/orca' } }
   }
@@ -26,8 +27,11 @@ function fixture() {
     head: 'head',
     base: 'base',
     result: 'success',
+    calls: [],
     github: {
+      graphql: async () => {},
       rest: {
+        actions: { createWorkflowDispatch: async () => {} },
         pulls: { get: async () => ({ data: pull }) },
         repos: {
           getCommit: async () => ({ data: merge }),
@@ -86,7 +90,7 @@ for (const part of ['head', 'base']) {
 test('accepts an immutable upstream snapshot in this fork', async () => {
   const f = fixture()
   f.pull.head = {
-    ref: `updates/orca-main-${  'a'.repeat(40)}`,
+    ref: `updates/orca-main-${'a'.repeat(40)}`,
     sha: 'a'.repeat(40),
     repo: { full_name: 'cwstine/orca-colors' }
   }
@@ -97,10 +101,64 @@ test('accepts an immutable upstream snapshot in this fork', async () => {
 test('rejects a snapshot branch whose name no longer matches its commit', async () => {
   const f = fixture()
   f.pull.head = {
-    ref: `updates/orca-main-${  'a'.repeat(40)}`,
+    ref: `updates/orca-main-${'a'.repeat(40)}`,
     sha: 'b'.repeat(40),
     repo: { full_name: 'cwstine/orca-colors' }
   }
   await assert.rejects(prepare(f), /Only open upstream/)
   assert.equal(f.statuses.length, 0)
+})
+
+test('retries current upstream revisions when a head changes during validation', async () => {
+  const f = fixture()
+  const dispatched = []
+  f.github.rest.actions.createWorkflowDispatch = async (args) => dispatched.push(args)
+  f.autoMerge = true
+  f.pull.head.sha = 'new-head'
+  await publish(f)
+  assert.equal(f.statuses[0].state, 'failure')
+  assert.equal(dispatched.length, 1)
+  assert.deepEqual(dispatched[0].inputs, { pr_number: '1', retry_count: '1' })
+  assert.equal(dispatched[0].ref, 'staging')
+})
+test('limits retries to avoid an unbounded CI loop', async () => {
+  const f = fixture()
+  f.autoMerge = true
+  f.retryCount = 3
+  f.pull.head.sha = 'new-head'
+  f.github.rest.actions.createWorkflowDispatch = async () => {
+    throw new Error('unexpected retry')
+  }
+  await publish(f)
+})
+test('re-enables auto-merge after current checks pass even if upstream disabled it', async () => {
+  const f = fixture()
+  f.autoMerge = true
+  const requests = []
+  f.github.graphql = async (query, args) => requests.push(args)
+  await publish(f)
+  assert.equal(f.statuses[0].state, 'success')
+  assert.deepEqual(requests, [{ id: 'PR_1' }])
+})
+test('never enables auto-merge when validation failed', async () => {
+  const f = fixture()
+  f.autoMerge = true
+  f.result = 'failure'
+  f.github.graphql = async () => {
+    throw new Error('unexpected merge')
+  }
+  f.github.rest.actions.createWorkflowDispatch = async () => {
+    throw new Error('unexpected retry')
+  }
+  await publish(f)
+  assert.equal(f.statuses[0].state, 'failure')
+})
+
+test('uses the live staging tip when PR metadata still points to an older base', async () => {
+  const f = fixture()
+  f.github.rest.git.getRef = async () => ({ data: { object: { sha: 'current-base' } } })
+  f.merge.parents[0].sha = 'current-base'
+  await prepare(f)
+  assert.equal(f.outputs.base, 'current-base')
+  assert.equal(f.outputs.merge, 'merge')
 })

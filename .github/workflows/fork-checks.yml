@@ -6,6 +6,10 @@ on:
     branches: [staging]
   workflow_dispatch:
     inputs:
+      retry_count:
+        description: 'Internal retry counter for moving upstream commits'
+        default: '0'
+        required: false
       pr_number:
         description: 'Upstream update PR to validate and report required status'
         required: false
@@ -73,8 +77,10 @@ jobs:
     if: always() && needs.prepare.result == 'success'
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       statuses: write
+      actions: write
+      pull-requests: write
     steps:
       # Load status reporting from the trusted workflow revision, never the candidate.
       - uses: actions/checkout@v4
@@ -83,6 +89,8 @@ jobs:
       - uses: actions/github-script@v7
         env:
           PR_NUMBER: ${{ inputs.pr_number }}
+          AUTO_MERGE: ${{ vars.ORCA_COLORS_AUTO_MERGE }}
+          RETRY_COUNT: ${{ inputs.retry_count || '0' }}
           TESTED_HEAD: ${{ needs.prepare.outputs.head }}
           TESTED_BASE: ${{ needs.prepare.outputs.base }}
           RESULT: ${{ needs.validate.result }}
@@ -90,7 +98,8 @@ jobs:
           script: |
             const { publish } = require('./config/scripts/fork-check-status.cjs')
             await publish({ github, context, number: Number(process.env.PR_NUMBER),
-              head: process.env.TESTED_HEAD, base: process.env.TESTED_BASE, result: process.env.RESULT })
+              head: process.env.TESTED_HEAD, base: process.env.TESTED_BASE, result: process.env.RESULT,
+              autoMerge: process.env.AUTO_MERGE === 'true', retryCount: Number(process.env.RETRY_COUNT) })
 
   report-feature:
     needs: validate

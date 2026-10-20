@@ -182,3 +182,29 @@ test('refuses a snapshot branch that was moved to a different commit', async () 
   await assert.rejects(proposeUpstreamUpdate(f), /snapshot.*changed/i)
   assert.ok(!f.calls.some(([name]) => name === 'create'))
 })
+
+test('falls back to the upstream PR when GitHub denies workflow-containing snapshots', async () => {
+  const f = fixture(3)
+  f.github.rest.git.createRef = async () => {
+    throw Object.assign(new Error('Resource not accessible by integration'), { status: 403 })
+  }
+  await proposeUpstreamUpdate(f)
+  assert.equal(f.calls.find(([name]) => name === 'create')[1].head, 'stablyai:main')
+})
+test('reuses the existing upstream PR on the limited-token fallback', async () => {
+  const f = fixture(3, [
+    {
+      html_url: 'legacy',
+      number: 9,
+      node_id: 'PR_9',
+      head: { ref: 'main', repo: { full_name: 'stablyai/orca' } }
+    }
+  ])
+  f.autoMerge = true
+  f.github.rest.git.createRef = async () => {
+    throw Object.assign(new Error('denied'), { status: 403 })
+  }
+  assert.equal((await proposeUpstreamUpdate(f)).url, 'legacy')
+  assert.ok(f.calls.some(([name]) => name === 'dispatch'))
+  assert.ok(!f.calls.some(([name]) => name === 'create' || name === 'update'))
+})

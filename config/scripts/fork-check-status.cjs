@@ -29,19 +29,30 @@ async function prepare({ github, context, core, number }) {
   })
   const merge = (await github.rest.repos.getCommit({ ...repo, ref: `refs/pull/${number}/merge` }))
     .data
-  if (merge.parents[0]?.sha !== pull.base.sha || merge.parents[1]?.sha !== pull.head.sha) {
+  const currentBase = (await github.rest.git.getRef({ ...repo, ref: 'heads/staging' })).data.object
+    .sha
+  if (merge.parents[0]?.sha !== currentBase || merge.parents[1]?.sha !== pull.head.sha) {
     throw new Error('Merge candidate is stale or has conflicts; retry after GitHub refreshes it.')
   }
   for (const [key, value] of Object.entries({
     merge: merge.sha,
     head: pull.head.sha,
-    base: pull.base.sha
+    base: currentBase
   })) {
     core.setOutput(key, value)
   }
 }
 
-async function publish({ github, context, number, head, base, result }) {
+async function publish({
+  github,
+  context,
+  number,
+  head,
+  base,
+  result,
+  autoMerge = false,
+  retryCount = 0
+}) {
   const repo = context.repo
   const pull = (await github.rest.pulls.get({ ...repo, pull_number: number })).data
   checkPull(pull)
@@ -61,6 +72,32 @@ async function publish({ github, context, number, head, base, result }) {
         : 'Fork validation did not pass',
     target_url: `https://github.com/${repo.owner}/${repo.repo}/actions/runs/${context.runId}`
   })
+  if (!autoMerge) {
+    return
+  }
+  if (
+    !current &&
+    result !== 'cancelled' &&
+    Number.isInteger(retryCount) &&
+    retryCount >= 0 &&
+    retryCount < 3
+  ) {
+    await github.rest.actions.createWorkflowDispatch({
+      ...repo,
+      workflow_id: 'fork-checks.yml',
+      ref: 'staging',
+      inputs: { pr_number: String(number), retry_count: String(retryCount + 1) }
+    })
+  } else if (success && !pull.auto_merge) {
+    await github.graphql(
+      `mutation($id: ID!) {
+      enablePullRequestAutoMerge(input: {pullRequestId: $id, mergeMethod: MERGE}) {
+        pullRequest { number }
+      }
+    }`,
+      { id: pull.node_id }
+    )
+  }
 }
 
 module.exports = { prepare, publish }
