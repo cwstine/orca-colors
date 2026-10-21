@@ -90,6 +90,7 @@ jobs:
         env:
           PR_NUMBER: ${{ inputs.pr_number }}
           AUTO_MERGE: ${{ vars.ORCA_COLORS_AUTO_MERGE }}
+          SYNC_TOKEN: ${{ secrets.ORCA_COLORS_SYNC_TOKEN }}
           RETRY_COUNT: ${{ inputs.retry_count || '0' }}
           TESTED_HEAD: ${{ needs.prepare.outputs.head }}
           TESTED_BASE: ${{ needs.prepare.outputs.base }}
@@ -97,9 +98,10 @@ jobs:
         with:
           script: |
             const { publish } = require('./config/scripts/fork-check-status.cjs')
+            const syncGithub = process.env.SYNC_TOKEN ? new github.constructor({ auth: process.env.SYNC_TOKEN }) : undefined
             await publish({ github, context, number: Number(process.env.PR_NUMBER),
               head: process.env.TESTED_HEAD, base: process.env.TESTED_BASE, result: process.env.RESULT,
-              autoMerge: process.env.AUTO_MERGE === 'true', retryCount: Number(process.env.RETRY_COUNT) })
+              syncGithub, autoMerge: process.env.AUTO_MERGE === 'true', retryCount: Number(process.env.RETRY_COUNT) })
 
   report-feature:
     needs: validate
