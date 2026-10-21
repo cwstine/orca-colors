@@ -27,6 +27,7 @@ function fixture() {
     head: 'head',
     base: 'base',
     result: 'success',
+    syncGithub: { graphql: async () => {} },
     calls: [],
     github: {
       graphql: async () => {},
@@ -135,7 +136,10 @@ test('re-enables auto-merge after current checks pass even if upstream disabled 
   const f = fixture()
   f.autoMerge = true
   const requests = []
-  f.github.graphql = async (query, args) => requests.push(args)
+  f.github.graphql = async () => {
+    throw new Error('used built-in token')
+  }
+  f.syncGithub.graphql = async (query, args) => requests.push(args)
   await publish(f)
   assert.equal(f.statuses[0].state, 'success')
   assert.deepEqual(requests, [{ id: 'PR_1' }])
@@ -144,7 +148,7 @@ test('never enables auto-merge when validation failed', async () => {
   const f = fixture()
   f.autoMerge = true
   f.result = 'failure'
-  f.github.graphql = async () => {
+  f.syncGithub.graphql = async () => {
     throw new Error('unexpected merge')
   }
   f.github.rest.actions.createWorkflowDispatch = async () => {
@@ -161,4 +165,15 @@ test('uses the live staging tip when PR metadata still points to an older base',
   await prepare(f)
   assert.equal(f.outputs.base, 'current-base')
   assert.equal(f.outputs.merge, 'merge')
+})
+
+test('reports a missing sync credential instead of attempting auto-merge with the built-in token', async () => {
+  const f = fixture()
+  f.autoMerge = true
+  delete f.syncGithub
+  f.github.graphql = async () => {
+    throw new Error('used built-in token')
+  }
+  await assert.rejects(publish(f), /ORCA_COLORS_SYNC_TOKEN/)
+  assert.equal(f.statuses[0].state, 'success')
 })

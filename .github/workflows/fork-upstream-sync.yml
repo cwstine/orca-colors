@@ -24,8 +24,13 @@ jobs:
         env:
           AUTO_MERGE: ${{ vars.ORCA_COLORS_AUTO_MERGE }}
           CREATE_UPDATE_PRS: ${{ vars.ORCA_COLORS_CREATE_UPDATE_PRS }}
+          SYNC_TOKEN: ${{ secrets.ORCA_COLORS_SYNC_TOKEN }}
         with:
+          github-token: ${{ secrets.ORCA_COLORS_SYNC_TOKEN || github.token }}
           script: |
+            if ((process.env.CREATE_UPDATE_PRS === 'true' || process.env.AUTO_MERGE === 'true') && !process.env.SYNC_TOKEN) {
+              throw new Error('Set the ORCA_COLORS_SYNC_TOKEN Actions secret with access to this repo and Actions, Contents, Pull requests, and Workflows write permissions. See FORK.md.')
+            }
             const { proposeUpstreamUpdate } = require('./config/scripts/fork-upstream-proposal.cjs')
             const result = await proposeUpstreamUpdate({ github, context, core, createPullRequests: process.env.CREATE_UPDATE_PRS === 'true', autoMerge: process.env.AUTO_MERGE === 'true' })
             await core.summary.addHeading('Orca upstream updates').addRaw(

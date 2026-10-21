@@ -20,13 +20,28 @@ Preferences are saved in the local profile's renderer storage (`orca-colors.back
 
 ## Upstream updates
 
-**Fork upstream updates** runs **hourly at minute 23** and can also be run from the Actions page. It compares upstream `stablyai/orca:main` with this fork's `staging` branch and opens one update PR when there are new commits. Automatic PR creation is enabled through `ORCA_COLORS_CREATE_UPDATE_PRS=true` and the approved GitHub workflow permission. If that variable is disabled, the workflow falls back to reporting a comparison link. When GitHub permits creating the snapshot ref, each update uses a branch pinned to one upstream commit. While that PR is open, repeated runs retry its checks without moving its source branch. Newer upstream commits are picked up after it merges, so a busy upstream cannot keep invalidating the same update. GitHub’s built-in token cannot create snapshot refs when upstream changes workflow files. In that case, the job uses an upstream PR directly, retries checks up to three times when its head changes during validation, and re-enables auto-merge once the current revision passes. If upstream keeps moving through every retry, the next hourly run tries again. GitHub may delay scheduled runs; this is hourly polling, not immediate delivery.
+**Fork upstream updates** runs **hourly at minute 23** and can also be run from the Actions page. It compares upstream `stablyai/orca:main` with this fork's `staging` branch and opens one update PR when there are new commits. Automatic PR creation is enabled through `ORCA_COLORS_CREATE_UPDATE_PRS=true`. If that variable is disabled, the workflow reports a comparison link. Each update uses a branch pinned to one upstream commit. While that PR is open, repeated runs retry its checks without moving its source branch. Newer upstream commits are picked up after it merges. GitHub may delay scheduled runs; this is hourly polling, not immediate delivery.
+
+### Sync credential
+
+Add an Actions repository secret named **`ORCA_COLORS_SYNC_TOKEN`** in [this fork's secret settings](https://github.com/cwstine/orca-colors/settings/secrets/actions). Create a fine-grained personal access token owned by `cwstine`, restricted to **only `orca-colors`**, with these repository permissions:
+
+- **Actions: Read and write** — dispatch the fork's validation workflow.
+- **Contents: Read and write** — create pinned upstream branches and merge updates.
+- **Pull requests: Read and write** — create update PRs, close the replaced moving-head PR, and enable auto-merge.
+- **Workflows: Read and write** — import upstream commits that modify workflow files.
+
+Metadata read access is automatic. Choose an expiry and replace the secret before the token expires. Enter the value directly into GitHub; never commit it or include it in a PR description. See [GitHub's token setup instructions](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens).
+
+The secret is required for automatic update PRs and merges, with no default. GitHub's built-in token cannot grant the Workflows permission needed here. The former fallback to a direct upstream PR also failed to enable auto-merge, so missing credentials or permissions now produce an explicit setup error. Report-only polling still works without a secret.
+
+The workflows expose this secret as the internal `SYNC_TOKEN` environment variable only in trusted proposal/report steps. Candidate code receives no sync credential. Status reporting continues to use the built-in token; the dedicated client enables auto-merge only after successful validation of the current head and base. This token does not need Commit statuses or Administration write access.
 
 Updates are **merged automatically after the required fork checks pass**, using `ORCA_COLORS_AUTO_MERGE=true` and GitHub auto-merge. Checks test a pinned merge of upstream and this fork, with a required `Orca Colors checks` status on the upstream commit. Conflicts and failed checks leave the PR open for attention. This tracks all changes on upstream main, including changes before an official release. Rebuild the app after source updates; this workflow does not install app updates.
 
 **Fork checks** tests the color feature, updater guard, automation and renderer types using standard GitHub runners. Upstream's inherited workflows use Stably infrastructure and are kept disabled in this fork; their YAML remains intact to reduce future merge conflicts. These focused checks do not replace upstream's full multi-platform test matrix.
 
-The hourly update workflow explicitly dispatches **Fork checks** from trusted `staging` with the upstream PR number, avoiding bot-created PR approval prompts. Candidate code runs in a separate job with read-only permissions and no secrets. A separate trusted job publishes the required status only if the tested head and base are still current. To retry, run **Fork upstream updates** manually. If conflicts prevent a merge candidate from existing, resolve them first. GitHub may disable scheduled workflows after 60 days without repository activity; re-enable **Fork upstream updates** on the Actions page if that happens.
+The hourly update workflow explicitly dispatches **Fork checks** from trusted `staging` with the upstream PR number, avoiding bot-created PR approval prompts. Candidate code runs in a separate job with read-only permissions and no secrets. A separate trusted job publishes the required status only if the tested head and base are still current, then enables auto-merge with the sync credential. To retry, run **Fork upstream updates** manually. If conflicts prevent a merge candidate from existing, resolve them first. GitHub may disable scheduled workflows after 60 days without repository activity; re-enable **Fork upstream updates** on the Actions page if that happens.
 
 ## Develop and build on macOS
 

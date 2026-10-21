@@ -51,7 +51,8 @@ async function publish({
   base,
   result,
   autoMerge = false,
-  retryCount = 0
+  retryCount = 0,
+  syncGithub
 }) {
   const repo = context.repo
   const pull = (await github.rest.pulls.get({ ...repo, pull_number: number })).data
@@ -89,7 +90,12 @@ async function publish({
       inputs: { pr_number: String(number), retry_count: String(retryCount + 1) }
     })
   } else if (success && !pull.auto_merge) {
-    await github.graphql(
+    if (!syncGithub) {
+      throw new Error(
+        'Set the ORCA_COLORS_SYNC_TOKEN Actions secret before enabling upstream auto-merge. See FORK.md.'
+      )
+    }
+    await syncGithub.graphql(
       `mutation($id: ID!) {
       enablePullRequestAutoMerge(input: {pullRequestId: $id, mergeMethod: MERGE}) {
         pullRequest { number }

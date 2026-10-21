@@ -113,7 +113,7 @@ test('report-only mode never attempts to create or approve a PR', async () => {
 })
 
 for (const existing of [[], [snapshot]]) {
-  test(`enables gated auto-merge and dispatches checks for ${existing.length ? 'existing' : 'new'} PR`, async () => {
+  test(`dispatches checks without enabling auto-merge before validation for ${existing.length ? 'existing' : 'new'} PR`, async () => {
     const f = fixture(2, existing)
     f.autoMerge = true
     await proposeUpstreamUpdate(f)
@@ -121,12 +121,7 @@ for (const existing of [[], [snapshot]]) {
     assert.equal(dispatch.ref, 'staging')
     assert.equal(dispatch.workflow_id, 'fork-checks.yml')
     assert.equal(dispatch.inputs.pr_number, String(existing.length ? 2 : 1))
-    const merge = f.calls.find(([name]) => name === 'autoMerge')[1]
-    assert.equal(merge.id, existing.length ? 'PR_2' : 'PR_1')
-    assert.ok(
-      f.calls.findIndex(([name]) => name === 'dispatch') <
-        f.calls.findIndex(([name]) => name === 'autoMerge')
-    )
+    assert.ok(!f.calls.some(([name]) => name === 'autoMerge'))
   })
 }
 test('does not enable auto-merge unless explicitly configured', async () => {
@@ -183,28 +178,12 @@ test('refuses a snapshot branch that was moved to a different commit', async () 
   assert.ok(!f.calls.some(([name]) => name === 'create'))
 })
 
-test('falls back to the upstream PR when GitHub denies workflow-containing snapshots', async () => {
+test('reports missing snapshot permissions without falling back to another unmergeable PR', async () => {
   const f = fixture(3)
+  f.autoMerge = true
   f.github.rest.git.createRef = async () => {
     throw Object.assign(new Error('Resource not accessible by integration'), { status: 403 })
   }
-  await proposeUpstreamUpdate(f)
-  assert.equal(f.calls.find(([name]) => name === 'create')[1].head, 'stablyai:main')
-})
-test('reuses the existing upstream PR on the limited-token fallback', async () => {
-  const f = fixture(3, [
-    {
-      html_url: 'legacy',
-      number: 9,
-      node_id: 'PR_9',
-      head: { ref: 'main', repo: { full_name: 'stablyai/orca' } }
-    }
-  ])
-  f.autoMerge = true
-  f.github.rest.git.createRef = async () => {
-    throw Object.assign(new Error('denied'), { status: 403 })
-  }
-  assert.equal((await proposeUpstreamUpdate(f)).url, 'legacy')
-  assert.ok(f.calls.some(([name]) => name === 'dispatch'))
-  assert.ok(!f.calls.some(([name]) => name === 'create' || name === 'update'))
+  await assert.rejects(proposeUpstreamUpdate(f), /ORCA_COLORS_SYNC_TOKEN.*Workflows/)
+  assert.ok(!f.calls.some(([name]) => ['create', 'dispatch', 'autoMerge', 'update'].includes(name)))
 })
